@@ -56,7 +56,7 @@ class Sim {
   paint(cx, cy, r, t) {
     const { w, h, type } = this;
     const m = MATS[t];
-    const density = m.state === STATE.SOLID ? 1 : m.state === STATE.FIRE ? 0.4 : 0.55;
+    const density = m.paint ?? (m.state === STATE.SOLID ? 1 : m.state === STATE.FIRE ? 0.4 : 0.55);
     const r2 = r * r;
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -101,9 +101,11 @@ class Sim {
       if (life[i] > 0) life[i]--;
       else { this.expire(i, m); moved[i] = 1; return; }
     }
+    if (m.conduct && life[i] > 0) life[i]--;   // cooling down after carrying a charge
     if (m.glow && Math.random() < 0.05) this.shade[i] = (Math.random() * 4) | 0;
 
     if (m.reacts && this.react(x, y, i, t)) return;
+    if (m.tick && (BEHAVIORS[m.tick](this, x, y, i) || type[i] !== t)) return;
 
     if (m.state === STATE.FIRE || m.hot) {
       this.heat(x, y, i, m);
@@ -181,9 +183,15 @@ class Sim {
   ignite(x, y, j) {
     const m = MATS[this.type[j]];
     if (m.explode) { this.explode(x, y, m.explode); return; }
+    if (m.rocket) {
+      this.set(j, ID.rocket);
+      this.life[j] = randInt(30, 60);
+      this.moved[j] = 1;
+      return;
+    }
     const b = m.burn;
     let out = OUT_RANDOM;
-    if (b.into && Math.random() < (b.intoChance ?? 1)) out = ID[b.into];
+    if (b.into && Math.random() < (b.intoChance ?? 1)) out = ID[Array.isArray(b.into) ? pick(b.into) : b.into];
     this.setFire(j, randInt(b.life[0], b.life[1]), !!b.free, out);
     this.moved[j] = 1;
   }

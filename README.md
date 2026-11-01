@@ -15,28 +15,35 @@ Open `index.html` in a browser. No build step or install needed.
 
 ## Materials
 
-| Group     | Materials |
-|-----------|-----------|
-| Powders   | Sand, Salt, Snow, Ash |
-| Liquids   | Water, Salt Water, Oil, Lava |
-| Solids    | Wall, Stone, Wood, Plant, Metal, Rust, Glass, Ice |
-| Energy    | Fire, Gunpowder, Smoke, Steam |
-| Chemicals | Acid, Lye (base), Bleach, Sodium, Liquid Nitrogen, Soap, Hydrogen, Chlorine |
+| Group        | Materials |
+|--------------|-----------|
+| Powders      | Sand, Salt, Snow, Ash, Dirt, Mud |
+| Liquids      | Water, Salt Water, Oil, Lava, Honey, Mercury, Cement |
+| Solids       | Wall, Stone, Wood, Plant, Metal, Rust, Glass, Ice, Obsidian |
+| Energy       | Fire, Gunpowder, Smoke, Steam, Thermite, Fireworks, Torch |
+| Electric     | Copper, Spark, Battery |
+| Chemicals    | Acid, Lye, Bleach, Sodium, Liquid Nitrogen, Soap, Hydrogen, Chlorine, Baking Soda, Vinegar, Nitroglycerin, CO₂, Methane |
+| Life & Weird | Muncher, Void, Virus, Clone, Seed, Cloud |
 
-Some reactions to try:
+Some things to try:
 
-- Sodium + Water → lye + hydrogen (and sometimes it explodes)
-- Acid + Bleach → toxic chlorine gas, which sinks and kills plants
-- Acid + Lye → neutralizes into salt water
-- Lye + Oil → soap; Soap + Water → bubbles
-- Metal rusts in water, and much faster in salt water
-- Liquid nitrogen flash-freezes water and turns steam into snow
-- Burning hydrogen makes steam, which condenses back into water
+- **Muncher** eats pixels! It tunnels through anything, splits in two when it's eaten enough, and starves when food runs out. Fire, lava and acid kill it.
+- **Void** swallows anything that touches it (except Wall), and **Clone** copies the first thing that touches it
+- **Virus** spreads through everything it touches, then dies out. Bleach and fire stop it.
+- Drop **Seeds** on mud and they grow into flowers
+- Connect a **Battery** to a copper wire: electricity flows, sets wood alight, and splits water into hydrogen (salt water gives chlorine too)
+- Baking soda + vinegar = volcano. The CO₂ it makes smothers fire.
+- Light **Fireworks**, **Thermite** or (carefully) **Nitroglycerin**
+- Sodium + water → lye + hydrogen (and sometimes it explodes)
+- Acid + bleach → toxic chlorine gas, which sinks and kills plants
+- Lye + oil → soap; soap + water → bubbles
+- Liquid nitrogen flash-freezes water and turns lava into obsidian
 
 ## Code layout
 
 - `src/materials.js`: material definitions (physics properties, colors) and the reaction table
 - `src/sim.js`: the cellular-automaton simulation (movement, reactions, fire, explosions, rendering)
+- `src/behaviors.js`: special behaviors (munchers, electricity, clone, void, virus, seeds, fireworks...)
 - `src/main.js`: UI, input and the game loop
 
 ### Adding a material
@@ -45,6 +52,9 @@ Some reactions to try:
 material('mud', { state: STATE.POWDER, density: 2.5, color: '#5a4630', category: 'Powders',
   desc: 'Wet dirt.' });
 ```
+
+Give it `tick: 'name'` and add a `name(sim, x, y, i)` function to `BEHAVIORS` in `src/behaviors.js` for custom
+behavior.
 
 ### Adding a reaction
 

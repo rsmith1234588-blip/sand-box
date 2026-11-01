@@ -70,7 +70,7 @@ material('wood', { color: '#7a5230', blast: 1, dissolve: 0.08, category: 'Solids
 material('plant', { color: '#3fa34d', blast: 1, dissolve: 0.15, category: 'Solids',
   burn: { chance: 0.06, life: [20, 40], into: 'ash', intoChance: 0.2 }, desc: 'Grows into water. Chlorine kills it.' });
 material('metal', { color: '#a9b4bf', vary: 0.04, blast: 0.1, dissolve: 0.02, category: 'Solids',
-  desc: 'Rusts in water (faster in salt water). Lava melts it.' });
+  desc: 'Conducts electricity. Rusts in water (faster in salt water). Lava melts it.' });
 material('rust', { color: '#9a4e24', vary: 0.12, blast: 0.6, dissolve: 0.15, category: 'Solids',
   desc: 'Corroded metal. Acid eats it quickly.' });
 material('glass', { color: '#a8d8e0', vary: 0.03, blast: 1, category: 'Solids',
@@ -107,9 +107,83 @@ material('hydrogen', { state: STATE.GAS, density: 0.05, color: '#e8d6ff', vary: 
 material('chlorine', { state: STATE.GAS, density: 1.2, sink: true, color: '#b8e04a', vary: 0.06,
   decay: { into: 'empty', p: 0.0008 }, category: 'Chemicals', desc: 'Toxic, heavier than air. Kills plants.' });
 
+// More powders
+material('dirt', { state: STATE.POWDER, density: 2.5, color: '#7b5a3a', vary: 0.1, category: 'Powders',
+  dissolve: 0.08, desc: 'Soaks up water and turns into mud. Seeds sprout in it.' });
+material('mud', { state: STATE.POWDER, density: 2.6, color: '#4e3822', vary: 0.08, category: 'Powders',
+  dissolve: 0.08, desc: 'Wet dirt. The best place to plant seeds. Heat dries it out.' });
+material('bakingsoda', { name: 'Baking Soda', state: STATE.POWDER, density: 2.2, color: '#f7f3e8', vary: 0.03,
+  category: 'Chemicals', dissolve: 0.3, desc: 'Fizzes like crazy with vinegar or acid.' });
+material('thermite', { state: STATE.POWDER, density: 3, color: '#8a3d2b', vary: 0.12, category: 'Energy',
+  dissolve: 0.05, burn: { chance: 0.5, life: [40, 80], into: 'lava', intoChance: 0.5 },
+  desc: 'Burns white-hot and leaves molten metal behind.' });
+material('fireworks', { state: STATE.POWDER, density: 2.5, color: '#ff4d6d', vary: 0.15, category: 'Energy',
+  burn: { chance: 0.6, life: [1, 1] }, rocket: true, paint: 0.3, dissolve: 0.1,
+  desc: 'Light it and watch it launch and burst!' });
+
+// More liquids
+material('honey', { state: STATE.LIQUID, density: 2.4, flow: 2, moveChance: 0.12, color: '#e8a317', vary: 0.06,
+  category: 'Liquids', desc: 'Very thick and slow.' });
+material('mercury', { state: STATE.LIQUID, density: 6, flow: 4, color: '#c7ccd4', vary: 0.05, conduct: true,
+  category: 'Liquids', desc: 'Liquid metal. Super heavy, sinks under everything. Conducts electricity.' });
+material('cement', { state: STATE.LIQUID, density: 2.4, flow: 2, moveChance: 0.5, color: '#9a9a96', vary: 0.04,
+  decay: { into: 'stone', p: 0.0015 }, category: 'Liquids', desc: 'Pour it, shape it, and it sets into stone.' });
+material('nitro', { name: 'Nitroglycerin', state: STATE.LIQUID, density: 1.6, flow: 3, color: '#e8e3a0', vary: 0.04,
+  burn: { chance: 1, life: [1, 1] }, explode: 9, category: 'Chemicals', desc: 'Extremely explosive. Handle with care!' });
+material('vinegar', { state: STATE.LIQUID, density: 2.02, flow: 4, color: '#e9dcb8', vary: 0.04, category: 'Chemicals',
+  desc: 'A weak acid. Mix with baking soda for a volcano.' });
+
+// More solids
+material('copper', { color: '#c87533', vary: 0.08, blast: 0.15, dissolve: 0.02, conduct: true, category: 'Electric',
+  desc: 'Conducts electricity. Never rusts.' });
+material('obsidian', { color: '#2a1d3a', vary: 0.12, blast: 0.15, immune: true, category: 'Solids',
+  desc: 'Volcanic glass, made by flash-cooling lava. Acid-proof.' });
+material('torch', { color: '#b5651d', vary: 0.05, hot: 0.3, tick: 'torch', category: 'Energy',
+  desc: 'Burns forever.' });
+material('cloud', { color: '#d9dde6', vary: 0.05, tick: 'cloud', category: 'Life & Weird',
+  desc: 'Floats in place and rains.' });
+
+// More gases
+material('co2', { name: 'CO₂', state: STATE.GAS, density: 1.5, sink: true, color: '#8f99a6', vary: 0.06,
+  decay: { into: 'empty', p: 0.0006 }, category: 'Chemicals', desc: 'Heavy gas. Smothers fire. Plants love it.' });
+material('methane', { state: STATE.GAS, density: 0.08, color: '#a6c8a0', vary: 0.05, category: 'Chemicals',
+  burn: { chance: 0.9, life: [6, 14], into: ['co2', 'steam', 'empty'], free: true },
+  desc: 'Flammable natural gas. Burns into CO₂ and water.' });
+
+// Electricity
+material('spark', { state: STATE.GAS, density: 0.1, life: [5, 10], color: '#fff7a0', vary: 0.1, tick: 'spark',
+  paint: 0.3, category: 'Electric', desc: 'Electricity! Travels through metal, copper and mercury. Splits water.' });
+material('battery', { color: '#2f9e6a', vary: 0.04, blast: 0.5, immune: true, tick: 'battery', category: 'Electric',
+  desc: 'Keeps pulsing electricity into touching metal, copper or mercury.' });
+
+// Life & weird
+material('muncher', { color: '#ff3df2', vary: 0.2, glow: true, tick: 'muncher', inedible: true, dissolve: 0.3,
+  paint: 0.04, category: 'Life & Weird',
+  desc: 'Eats pixels! Multiplies when well fed, starves when food runs out. Fire, lava and acid kill it.' });
+material('void', { color: '#1f0d3a', vary: 0.5, glow: true, tick: 'void', indestructible: true, inedible: true,
+  immune: true, category: 'Life & Weird', desc: 'A hungry hole. Swallows anything that touches it (except Wall).' });
+material('virus', { color: '#7dd13b', vary: 0.3, glow: true, life: [40, 90], tick: 'virus', immune: true,
+  paint: 0.15, burn: { chance: 0.5, life: [5, 10] }, dissolve: 0.3, category: 'Life & Weird',
+  desc: 'Infects whatever it touches, then dies. Fire and bleach stop it.' });
+material('clone', { color: '#d4af37', vary: 0.05, tick: 'clone', indestructible: true, immune: true, inedible: true,
+  category: 'Life & Weird', desc: 'Copies the first thing that touches it, forever.' });
+material('seed', { state: STATE.POWDER, density: 2.3, color: '#c8b06a', vary: 0.1, tick: 'seed', paint: 0.08,
+  dissolve: 0.2, burn: { chance: 0.2, life: [5, 10] }, category: 'Life & Weird',
+  desc: 'Drop on mud (or dirt) and it grows into a flower.' });
+
 // Hidden helpers
 material('bubbles', { state: STATE.GAS, density: 0.1, life: [20, 60], expire: { into: 'water', p: 0.5 },
   color: '#e8f6ff', vary: 0.04 });
+material('charge', { color: '#fff5b0', vary: 0.1, glow: true, tick: 'charge', inedible: true, immune: true });
+material('stem', { color: '#4fbf4f', vary: 0.08, tick: 'stem', dissolve: 0.15,
+  burn: { chance: 0.06, life: [20, 40], into: 'ash', intoChance: 0.2 } });
+material('flower', { color: '#ff7eb6', blast: 1, dissolve: 0.2, burn: { chance: 0.08, life: [10, 20] } });
+material('rocket', { color: '#ffffff', tick: 'rocket', inedible: true, immune: true });
+material('sparkle', { state: STATE.GAS, density: 0.01, sink: true, life: [15, 45], color: '#ffffff' });
+
+for (const k of ['wall', 'glass', 'muncher']) MATS[ID[k]].immune = true;
+MATS[ID.metal].conduct = true;
+MATS[ID.wall].inedible = true;
 
 // ---------------------------------------------------------------- colors
 function hexToRgb(hex) {
@@ -129,6 +203,13 @@ for (const m of MATS) {
     m.colors[s] = packRGB(Math.round(r * f), Math.round(g * f), Math.round(b * f));
   }
 }
+// Multi-colored materials: the "shade" picks one of four distinct colors
+function setPalette(key, hexes) { MATS[ID[key]].colors = Uint32Array.from(hexes.map(h => packRGB(...hexToRgb(h)))); }
+setPalette('sparkle', ['#ff4d4d', '#ffd23f', '#3fd8ff', '#ff5cf0']);
+setPalette('flower', ['#ff7eb6', '#ff4d4d', '#b36bff', '#fff1a8']);
+setPalette('spark', ['#fffbe0', '#fff7a0', '#ffe14d', '#bfe9ff']);
+setPalette('charge', ['#fffbe0', '#fff7a0', '#ffe14d', '#bfe9ff']);
+
 // Fire color by remaining life: dark red embers -> bright yellow
 const FIRE_COLORS = new Uint32Array(256);
 for (let l = 0; l < 256; l++) {
@@ -205,7 +286,7 @@ react('snow', 'salt', 0.02, 'water', null);
 react('cryo', 'water', 0.25, null, 'ice', { note: 'Flash-freezes water' });
 react('cryo', 'saltwater', 0.1, null, 'ice');
 react('cryo', 'steam', 0.3, null, 'snow', { note: 'Turns steam into snow' });
-react('cryo', 'lava', 0.5, 'empty', 'stone', { note: 'Instantly cools lava' });
+react('cryo', 'lava', 0.5, 'empty', 'obsidian', { note: 'Flash-cools lava into obsidian' });
 react('cryo', 'fire', 0.5, 'empty', 'empty');
 
 // Metals
@@ -228,6 +309,41 @@ react('lye', 'oil', 0.04, 'soap', 'soap', { note: 'Saponification: how soap is m
 react('soap', 'water', 0.02, null, 'bubbles', { note: 'Makes bubbles' });
 react('chlorine', 'plant', 0.05, null, 'empty', { note: 'Chlorine kills plants' });
 react('chlorine', 'water', 0.01, 'empty', 'acid', { note: 'Dissolves into hydrochloric acid' });
+
+// Dirt, mud & growing things
+react('dirt', 'water', 0.02, 'mud', 'empty', { note: 'Dirt soaks up water' });
+react('mud', 'fire', 0.1, 'dirt', null, { note: 'Heat dries mud out' });
+react('mud', 'lava', 0.1, 'dirt', null);
+react('plant', 'co2', 0.02, null, 'plant', { note: 'Photosynthesis: plants grow by eating CO₂' });
+guideNote('Seed + Mud / Dirt', 'Flower', 'Plant a seed and it grows a stem, leaves and a flower');
+
+// Fizzing & CO2
+react('vinegar', 'bakingsoda', 0.3, 'water', ['co2', 'co2', 'bubbles'],
+  { products: 'CO₂, Water, Bubbles', note: 'The classic science-fair volcano' });
+react('acid', 'bakingsoda', 0.3, 'saltwater', ['co2', 'co2', 'bubbles'], { products: 'CO₂, Salt Water', note: 'Fizzes hard' });
+react('lye', 'vinegar', 0.2, 'saltwater', 'water', { note: 'Base + acid neutralize each other' });
+react('co2', 'fire', 0.5, null, 'empty', { note: 'CO₂ smothers fire (how some extinguishers work)' });
+
+// Burning & blasting
+guideNote('Fire + Thermite', 'Lava', 'Burns white-hot and melts into molten metal');
+guideNote('Fire + Nitroglycerin', 'HUGE BOOM', 'The biggest explosion in the box');
+guideNote('Fire + Fireworks', 'Rocket', 'Launches upward and bursts into colored sparkles');
+guideNote('Fire + Methane', 'CO₂, Steam', 'CH₄ + 2O₂ → CO₂ + 2H₂O');
+
+// Electricity
+guideNote('Spark / Battery + Metal, Copper, Mercury', 'Electricity', 'Current flows through conductors');
+guideNote('Electricity + Water', 'Hydrogen', 'Electrolysis splits water apart');
+guideNote('Electricity + Salt Water', 'Chlorine, Hydrogen', 'Chlor-alkali process, used to make bleach');
+guideNote('Electricity + Wood, Oil, Gunpowder...', 'Fire', 'Sparks set flammable things alight');
+
+// Life & weird
+guideNote('Muncher + almost anything', 'More Munchers', 'Eats pixels, multiplies when full, starves when hungry');
+guideNote('Void + anything', 'Nothing', 'Swallows everything except Wall');
+guideNote('Clone + anything', 'Copies', 'Copies whatever touches it first, forever');
+guideNote('Virus + almost anything', 'Virus', 'Spreads, then dies out. Glass, Wall and Obsidian are immune');
+react('virus', 'bleach', 0.3, 'empty', null, { note: 'Bleach disinfects' });
+react('muncher', 'fire', 0.2, 'ash', null, { note: 'Munchers are afraid of fire' });
+react('muncher', 'lava', 0.5, 'ash', null);
 
 // Acid dissolves things (generic)
 for (const m of MATS) {

@@ -46,7 +46,7 @@ function buildPalette() {
     if (!m.category) continue;
     (groups[m.category] ||= []).push(m);
   }
-  const order = ['Powders', 'Liquids', 'Solids', 'Energy', 'Chemicals'];
+  const order = ['Powders', 'Liquids', 'Solids', 'Energy', 'Electric', 'Chemicals', 'Life & Weird'];
   for (const g of order) {
     if (!groups[g]) continue;
     const section = document.createElement('section');
