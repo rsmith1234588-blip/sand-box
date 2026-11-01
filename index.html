@@ -15,6 +15,10 @@
         <button id="step" title="Advance one frame (.)">Step</button>
         <button id="clear">Clear</button>
         <button id="guideBtn">Reactions</button>
+        <label class="brush" title="How fast time runs. Keys: - and =">Speed
+          <input type="range" id="speed" min="0" max="6" step="1" value="3">
+          <span id="speedVal">1×</span>
+        </label>
         <label class="brush" title="A steady breeze that blows gases, fire, snow and ash">Breeze
           <input type="range" id="breeze" min="-3" max="3" step="1" value="0">
           <span id="breezeVal">off</span>
@@ -33,7 +37,7 @@
       <aside>
         <div id="info"></div>
         <div id="palette"></div>
-        <p class="hint">Left-click to draw · Right-click to erase · Hold Wind to blast things away · <kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>Space</kbd> pause</p>
+        <p class="hint">Left-click to draw · Right-click to erase · Hold Wind to blast things away · <kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>Space</kbd> pause · <kbd>-</kbd> <kbd>=</kbd> speed</p>
       </aside>
     </main>
   </div>

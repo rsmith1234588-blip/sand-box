@@ -48,7 +48,8 @@ button.active { border-color: var(--accent); color: var(--accent); }
 
 .brush { display: flex; align-items: center; gap: 6px; color: var(--muted); margin-left: 6px; }
 .brush input { width: 110px; accent-color: var(--accent); }
-#brushVal, #breezeVal { min-width: 3ch; color: var(--text); }
+#brushVal, #breezeVal, #speedVal { min-width: 3ch; color: var(--text); }
+#speed { width: 90px; }
 
 main { flex: 1; display: flex; min-height: 0; }
 

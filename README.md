@@ -12,6 +12,7 @@ Open `index.html` in a browser. No build step or install needed.
 - **Wind tool**: hold to blast everything away from the cursor. Bigger brush = wider, stronger wind
 - **Breeze** slider: a steady wind that pushes gases, fire, snow and ash
 - **`[` / `]`**: brush size
+- **Speed** slider: slow motion (⅛×) to fast forward (8×). Keys: **`-`** slower, **`=`** faster
 - **Space**: pause, **`.`**: step one frame
 - **Reactions** button: in-game guide to every reaction
 

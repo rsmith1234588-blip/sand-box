@@ -38,6 +38,8 @@ const ui = {
   guideList: document.getElementById('guideList'),
   stage: document.querySelector('.stage'),
   breeze: document.getElementById('breeze'),
+  speed: document.getElementById('speed'),
+  speedVal: document.getElementById('speedVal'),
   picker: document.getElementById('picker'),
   pickerGrid: document.getElementById('pickerGrid'),
   pickerTitle: document.getElementById('pickerTitle'),
@@ -50,6 +52,8 @@ const state = {
   brush: 4,
   paused: false,
   stepOnce: false,
+  speed: 1,          // simulation steps per frame (fractions = slow motion)
+  stepDebt: 0,       // accumulated partial steps
   drawing: false,
   erasing: false,
   last: null,     // last grid position while drawing
@@ -333,6 +337,18 @@ function setBreeze(v) {
   ui.breezeVal.textContent = v === 0 ? 'off' : v < 0 ? '←'.repeat(-v) : '→'.repeat(v);
 }
 ui.breeze.addEventListener('input', () => setBreeze(+ui.breeze.value));
+
+// Time control: slow motion to fast forward
+const SPEEDS = [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8];
+const SPEED_LABELS = ['⅛×', '¼×', '½×', '1×', '2×', '4×', '8×'];
+function setSpeed(index) {
+  index = Math.max(0, Math.min(SPEEDS.length - 1, index));
+  state.speed = SPEEDS[index];
+  state.stepDebt = 0;
+  ui.speed.value = index;
+  ui.speedVal.textContent = SPEED_LABELS[index];
+}
+ui.speed.addEventListener('input', () => setSpeed(+ui.speed.value));
 ui.guideBtn.addEventListener('click', () => ui.guide.showModal());
 ui.guide.addEventListener('click', e => { if (e.target === ui.guide || e.target.closest('.close')) ui.guide.close(); });
 ui.picker.addEventListener('click', e => { if (e.target === ui.picker || e.target.closest('.close')) ui.picker.close(); });
@@ -343,6 +359,8 @@ window.addEventListener('keydown', e => {
   else if (e.key === '[') setBrush(state.brush - 1);
   else if (e.key === ']') setBrush(state.brush + 1);
   else if (e.key === '.') state.stepOnce = true;
+  else if (e.key === '-' || e.key === '_') setSpeed(+ui.speed.value - 1);
+  else if (e.key === '=' || e.key === '+') setSpeed(+ui.speed.value + 1);
 });
 
 // ------------------------------------------------------------ loop
@@ -368,7 +386,7 @@ function updateHud() {
     else if (t) under = MATS[t].name + ' · ';
   }
   const people = sim.people.length ? ` · ${sim.people.length} people` : '';
-  ui.hud.textContent = `${under}${particles.toLocaleString()} particles${people} · ${fps} fps${state.paused ? ' · paused' : ''}`;
+  ui.hud.textContent = `${under}${particles.toLocaleString()} particles${people} · ${fps} fps${state.paused ? ' · paused' : state.speed !== 1 ? ' · ' + ui.speedVal.textContent + ' speed' : ''}`;
 }
 
 function frame(now) {
@@ -378,10 +396,18 @@ function frame(now) {
     if (currentTool() === TOOL_WIND) applyWind();
     else applyTool(state.last, state.last, true);
   }
-  if (!state.paused || state.stepOnce) {
+  if (state.stepOnce) {
     sim.step();
     updatePeople(sim);
     state.stepOnce = false;
+  } else if (!state.paused) {
+    // run as many simulation steps as the speed asks for (slow motion skips frames)
+    state.stepDebt += state.speed;
+    while (state.stepDebt >= 1) {
+      sim.step();
+      updatePeople(sim);
+      state.stepDebt -= 1;
+    }
   }
   sim.render(buf);
   drawPeople(sim, buf);
@@ -420,6 +446,7 @@ buildPicker();
 buildGuide();
 refreshPickyLabels();
 setBrush(state.brush);
+setSpeed(3);
 demoScene();
 fit();
 requestAnimationFrame(frame);
