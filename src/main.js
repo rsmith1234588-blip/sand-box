@@ -21,6 +21,9 @@ const ctx = canvas.getContext('2d');
 const image = ctx.createImageData(W, H);
 const buf = new Uint32Array(image.data.buffer);
 
+// Order of the material groups in the palette and the picky-muncher menu
+const PALETTE_ORDER = ['Powders', 'Liquids', 'Solids', 'Energy', 'Electric', 'Chemicals', 'Physics', 'Life & Weird'];
+
 const ui = {
   palette: document.getElementById('palette'),
   info: document.getElementById('info'),
@@ -65,8 +68,7 @@ function buildPalette() {
     (groups[m.category] ||= []).push(m);
   }
   for (const t of EXTRA_TOOLS) (groups[t.category] ||= []).unshift(t);
-  const order = ['Powders', 'Liquids', 'Solids', 'Energy', 'Electric', 'Chemicals', 'Physics', 'Life & Weird'];
-  for (const g of order) {
+  for (const g of PALETTE_ORDER) {
     if (!groups[g]) continue;
     const section = document.createElement('section');
     section.innerHTML = `<h2>${g}</h2>`;
@@ -107,30 +109,47 @@ function refreshPickyLabels() {
 }
 
 function buildPicker() {
-  // anything placeable, except munchers themselves and one-shot tools
+  // anything placeable, except munchers themselves and one-shot tools,
+  // grouped like the side palette, with odds and ends (dead munchers) first under "Misc"
   const skip = new Set([ID.picky, ID.antipicky, ID.muncher, ID.lightning, ID.blackhole, ID.spark]);
+  const groups = { Misc: [] };
   for (const m of MATS) {
     if ((!m.category && !m.pickerOnly) || skip.has(m.id)) continue;
-    const b = document.createElement('button');
-    b.className = 'mat';
-    b.dataset.food = m.id;
-    b.innerHTML = `<span class="swatch" style="background:${m.color}"></span>${m.name}`;
-    b.addEventListener('click', () => {
-      if (state.pickerFor === ID.picky) state.pickyTarget = m.id;
-      else state.antiTarget = m.id;
-      ui.picker.close();
-      refreshPickyLabels();
-      select(state.pickerFor);
-    });
-    ui.pickerGrid.appendChild(b);
+    (groups[m.pickerOnly ? 'Misc' : m.category] ||= []).push(m);
   }
+  for (const g of ['Misc', ...PALETTE_ORDER]) {
+    if (!groups[g] || !groups[g].length) continue;
+    const section = document.createElement('section');
+    section.dataset.group = g;
+    section.innerHTML = `<h3>${g}</h3>`;
+    const grid = document.createElement('div');
+    grid.className = 'mats';
+    for (const m of groups[g]) grid.appendChild(pickerButton(m));
+    section.appendChild(grid);
+    ui.pickerGrid.appendChild(section);
+  }
+}
+
+function pickerButton(m) {
+  const b = document.createElement('button');
+  b.className = 'mat';
+  b.dataset.food = m.id;
+  b.innerHTML = `<span class="swatch" style="background:${m.color}"></span>${m.name}`;
+  b.addEventListener('click', () => {
+    if (state.pickerFor === ID.picky) state.pickyTarget = m.id;
+    else state.antiTarget = m.id;
+    ui.picker.close();
+    refreshPickyLabels();
+    select(state.pickerFor);
+  });
+  return b;
 }
 
 function openPicker(kind) {
   state.pickerFor = kind;
-  // dead munchers are only on the menu for the Picky Muncher (nothing else eats them anyway)
-  const corpseBtn = ui.pickerGrid.querySelector(`.mat[data-food="${ID.corpse}"]`);
-  if (corpseBtn) corpseBtn.style.display = kind === ID.picky ? "" : "none";
+  // dead munchers (Misc) are only on the menu for the Picky Muncher (nothing else eats them anyway)
+  const misc = ui.pickerGrid.querySelector('section[data-group="Misc"]');
+  if (misc) misc.style.display = kind === ID.picky ? '' : 'none';
   if (kind === ID.picky) {
     ui.pickerTitle.textContent = 'What should this Muncher eat?';
     ui.pickerText.textContent = 'It will only eat this material, and leave everything else alone. ' +

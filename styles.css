@@ -145,10 +145,19 @@ dialog {
   border-radius: 10px;
 }
 .picker-grid {
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   max-height: 60vh;
   overflow-y: auto;
+  padding-right: 4px;
 }
+.picker-grid .mats { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.picker-grid h3 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+.picker-grid section:first-child h3 { margin-top: 0; }
 .picker-grid .mat.active { border-color: var(--accent); color: var(--accent); }
 
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
