@@ -154,7 +154,40 @@ material('methane', { state: STATE.GAS, density: 0.08, color: '#a6c8a0', vary: 0
 material('spark', { state: STATE.GAS, density: 0.1, life: [5, 10], color: '#fff7a0', vary: 0.1, tick: 'spark',
   paint: 0.3, category: 'Electric', desc: 'Electricity! Travels through metal, copper and mercury. Splits water.' });
 material('battery', { color: '#2f9e6a', vary: 0.04, blast: 0.5, immune: true, tick: 'battery', category: 'Electric',
-  desc: 'Keeps pulsing electricity into touching metal, copper or mercury.' });
+  desc: 'Keeps pulsing electricity into touching conductors (metal, copper, mercury, lamps...).' });
+material('lamp', { color: '#5c5530', vary: 0.05, conduct: true, halo: true, blast: 0.5, category: 'Electric',
+  desc: 'Lights up when electricity flows through it.' });
+material('neon', { state: STATE.GAS, density: 0.15, color: '#4a3640', vary: 0.08, conduct: true, category: 'Electric',
+  desc: 'A noble gas that glows pink when electrified. Seal it in glass for a neon sign (run a wire through the glass, since glass blocks electricity)!' });
+material('switchOff', { name: 'Switch', color: '#a33b3b', vary: 0.04, immune: true, category: 'Electric',
+  desc: 'Click a placed switch with this tool to flip it. Green = on (conducts), red = off.' });
+material('switchOn', { name: 'Switch (on)', color: '#2fbf71', vary: 0.04, conduct: true, immune: true });
+material('plate', { name: 'Pressure Plate', color: '#8c7a5b', vary: 0.04, tick: 'plate', category: 'Electric',
+  desc: 'Sends power while a person (or anything) is standing on it.' });
+material('diodeR', { name: 'Diode →', color: '#6b3fa0', vary: 0.04, conduct: true, diode: 1, category: 'Electric',
+  desc: 'Electricity can only pass through it going right.' });
+material('diodeL', { name: 'Diode ←', color: '#3f6ba0', vary: 0.04, conduct: true, diode: -1, category: 'Electric',
+  desc: 'Electricity can only pass through it going left.' });
+material('heater', { name: 'Heating Coil', color: '#5a2a1a', vary: 0.05, conduct: true, hold: 10, tick: 'heater',
+  category: 'Electric', desc: 'Glows red-hot when powered: boils water, melts ice, lights fires.' });
+material('cooler', { name: 'Cooling Coil', color: '#1a3a5a', vary: 0.05, conduct: true, hold: 10, tick: 'cooler',
+  category: 'Electric', desc: 'Freezing cold when powered: freezes water, puts out fire, turns steam to snow.' });
+material('emagnet', { name: 'Electromagnet', color: '#4a4f6a', vary: 0.05, conduct: true, hold: 10, category: 'Electric',
+  desc: 'Pulls Iron Filings, but only while powered.' });
+material('magnet', { color: '#c0392b', vary: 0.05, category: 'Electric', desc: 'Always pulls Iron Filings.' });
+material('iron', { name: 'Iron Filings', state: STATE.POWDER, density: 3.5, color: '#5d6166', vary: 0.18, conduct: true,
+  tick: 'iron', dissolve: 0.05, category: 'Electric', desc: 'Magnetic metal dust. Conducts electricity.' });
+material('tesla', { name: 'Tesla Coil', color: '#8a8f99', vary: 0.05, conduct: true, hold: 10, tick: 'tesla',
+  category: 'Electric', desc: 'Shoots crackling lightning arcs while powered.' });
+material('efan', { name: 'Electric Fan', color: '#3d5266', vary: 0.05, conduct: true, hold: 10, tick: 'efan',
+  category: 'Electric', desc: 'A fan that blows an updraft only while powered.' });
+material('solar', { name: 'Solar Panel', color: '#1f3a6e', vary: 0.06, tick: 'solar', category: 'Electric',
+  desc: 'Makes electricity while it can see the sky.' });
+material('thermo', { name: 'Thermo Generator', color: '#6e4a1f', vary: 0.05, tick: 'thermo', category: 'Electric',
+  desc: 'Makes electricity from heat. Put fire or lava next to it.' });
+material('lightning', { color: '#ffffff', tick: 'lightning', single: true, category: 'Electric',
+  desc: 'Click to call down a lightning strike!' });
+material('arc', { color: '#cfe8ff', life: [2, 5], tick: 'arc', inedible: true, immune: true });
 
 // Life & weird
 material('muncher', { color: '#ff3df2', vary: 0.2, glow: true, tick: 'muncher', inedible: true, dissolve: 0.3,
@@ -180,7 +213,7 @@ material('portalB', { name: 'Orange Portal', color: '#ff9a1f', vary: 0.3, glow: 
   desc: 'Anything that falls, flows or walks in comes out of a Blue Portal.' });
 material('fan', { color: '#6d7b8c', vary: 0.05, blast: 0.3, tick: 'fan', category: 'Physics',
   desc: 'Blows a strong updraft. Powders, liquids, gases and people get lifted.' });
-material('blackhole', { name: 'Black Hole', color: '#5a1f8f', vary: 0.6, glow: true, tick: 'blackhole', paint: 0.03,
+material('blackhole', { name: 'Black Hole', color: '#5a1f8f', vary: 0.6, glow: true, tick: 'blackhole', single: true,
   indestructible: true, immune: true, inedible: true, category: 'Physics',
   desc: 'Pulls in everything nearby (even people) and swallows it.' });
 
@@ -197,7 +230,8 @@ material('sparkle', { state: STATE.GAS, density: 0.01, sink: true, life: [15, 45
 for (const k of ['wall', 'glass', 'muncher']) MATS[ID[k]].immune = true;
 MATS[ID.metal].conduct = true;
 // Things that hurt little people
-for (const k of ['fire', 'lava', 'acid', 'void', 'muncher', 'virus', 'chlorine', 'charge', 'spark', 'blackhole', 'cryo']) {
+for (const k of ['fire', 'lava', 'acid', 'void', 'muncher', 'virus', 'chlorine', 'charge', 'spark', 'blackhole', 'cryo',
+  'arc']) {
   MATS[ID[k]].deadly = true;
 }
 MATS[ID.wall].inedible = true;
@@ -226,6 +260,21 @@ setPalette('sparkle', ['#ff4d4d', '#ffd23f', '#3fd8ff', '#ff5cf0']);
 setPalette('flower', ['#ff7eb6', '#ff4d4d', '#b36bff', '#fff1a8']);
 setPalette('spark', ['#fffbe0', '#fff7a0', '#ffe14d', '#bfe9ff']);
 setPalette('charge', ['#fffbe0', '#fff7a0', '#ffe14d', '#bfe9ff']);
+setPalette('arc', ['#ffffff', '#cfe8ff', '#a8d4ff', '#e6d6ff']);
+// Colors for powered conductors (and pressed plates)
+function setLit(key, hexes) { MATS[ID[key]].lit = Uint32Array.from(hexes.map(h => packRGB(...hexToRgb(h)))); }
+setLit('lamp', ['#fff3a0', '#fffbe0']);
+setLit('neon', ['#ff4fa3', '#ff86c2']);
+setLit('heater', ['#ff5a1f', '#ff8c3a']);
+setLit('cooler', ['#7fe8ff', '#c8f6ff']);
+setLit('emagnet', ['#8f9bff', '#b8c0ff']);
+setLit('tesla', ['#cfe8ff', '#ffffff']);
+setLit('efan', ['#6fa8dc', '#9fc5e8']);
+setLit('plate', ['#d8c48e', '#e6d5a5']);
+setLit('thermo', ['#b8732a', '#d08a3a']);
+setLit('diodeR', ['#c08cff', '#d8b0ff']);
+setLit('diodeL', ['#8cc0ff', '#b0d4ff']);
+const HALO_COLOR = packRGB(70, 64, 30);
 
 // Fire color by remaining life: dark red embers -> bright yellow
 const FIRE_COLORS = new Uint32Array(256);
@@ -352,6 +401,15 @@ guideNote('Spark / Battery + Metal, Copper, Mercury', 'Electricity', 'Current fl
 guideNote('Electricity + Water', 'Hydrogen', 'Electrolysis splits water apart');
 guideNote('Electricity + Salt Water', 'Chlorine, Hydrogen', 'Chlor-alkali process, used to make bleach');
 guideNote('Electricity + Wood, Oil, Gunpowder...', 'Fire', 'Sparks set flammable things alight');
+guideNote('Electricity + Lamp / Neon', 'Light', 'Lamps glow yellow, neon glows pink');
+guideNote('Switch / Diode', 'Control', 'Flip switches to open/close a circuit. Diodes only let current flow one way');
+guideNote('Person / stuff + Pressure Plate', 'Electricity', 'Step on it to power the circuit');
+guideNote('Electricity + Heating / Cooling Coil', 'Hot / Cold', 'Boil water and light fires, or freeze water and snuff fires');
+guideNote('Magnet / powered Electromagnet + Iron Filings', 'Attraction', 'Iron dust flies to magnets');
+guideNote('Electricity + Tesla Coil', 'Lightning arcs', 'Zaps anything nearby');
+guideNote('Sunlight + Solar Panel', 'Electricity', 'Needs a clear view of the sky');
+guideNote('Fire / Lava + Thermo Generator', 'Electricity', 'Turns heat into power');
+guideNote('Lightning + Sand', 'Glass', 'Real lightning makes glass tubes called fulgurites');
 
 // Physics
 guideNote('Blue Portal ⇄ Orange Portal', 'Teleport', 'Things go in one color and come out the other, still moving the same way');

@@ -17,17 +17,18 @@ function chargeCell(sim, j, original) {
   sim.moved[j] = 1;
 }
 
-// Effects of electricity on the four neighbours of (x, y).
-function electrify(sim, x, y) {
+// Effects of electricity on the neighbours of (x, y). `dirs` limits which way it goes (diodes).
+function electrify(sim, x, y, dirs = DIRS4) {
   const { w, type, life } = sim;
-  for (const [dx, dy] of DIRS4) {
+  for (const [dx, dy] of dirs) {
     const nx = x + dx, ny = y + dy;
     if (!inBounds(sim, nx, ny)) continue;
     const j = ny * w + nx, t = type[j];
     if (!t) continue;
     const m = MATS[t];
     if (m.conduct) {
-      if (life[j] === 0) chargeCell(sim, j, t);
+      // diodes only accept current flowing in their direction
+      if (life[j] === 0 && (m.diode === undefined || (dy === 0 && dx === m.diode))) chargeCell(sim, j, t);
     } else if (m.burn) {
       if (Math.random() < 0.3) sim.ignite(nx, ny, j);
     } else if (t === ID.water) {
@@ -36,6 +37,83 @@ function electrify(sim, x, y) {
       if (Math.random() < 0.04) { sim.set(j, Math.random() < 0.5 ? ID.chlorine : ID.hydrogen); sim.moved[j] = 1; }
     }
   }
+}
+
+// Push fresh current into any touching conductors (batteries, generators, plates).
+function powerNeighbors(sim, x, y) {
+  for (const [dx, dy] of DIRS4) {
+    const nx = x + dx, ny = y + dy;
+    if (!inBounds(sim, nx, ny)) continue;
+    const j = ny * sim.w + nx, t = sim.type[j];
+    const m = MATS[t];
+    if (t && m.conduct && sim.life[j] === 0 && (m.diode === undefined || (dy === 0 && dx === m.diode))) {
+      chargeCell(sim, j, t);
+    }
+  }
+}
+
+// A crackling arc that wanders out from (x, y) and zaps whatever it hits.
+function shootArc(sim, x, y, len) {
+  const { w, type } = sim;
+  let a = Math.random() * Math.PI * 2;
+  let cx = x, cy = y;
+  for (let k = 0; k < len; k++) {
+    a += (Math.random() - 0.5) * 1.2;
+    const nx = cx + Math.round(Math.cos(a)), ny = cy + Math.round(Math.sin(a));
+    if (!inBounds(sim, nx, ny)) return;
+    const j = ny * w + nx, t = type[j];
+    if (t === 0 || (MATS[t].state === STATE.GAS && !MATS[t].conduct)) {
+      sim.set(j, ID.arc);
+      sim.moved[j] = 1;
+      cx = nx; cy = ny;
+    } else if (t !== ID.arc) {
+      zap(sim, nx, ny, j);
+      return;
+    }
+  }
+}
+
+// Something got hit by an arc or lightning.
+function zap(sim, x, y, j) {
+  const t = sim.type[j], m = MATS[t];
+  if (m.conduct) { if (sim.life[j] === 0) chargeCell(sim, j, t); }
+  else if (m.burn) sim.ignite(x, y, j);
+  else if (t === ID.water) { sim.set(j, ID.hydrogen); sim.moved[j] = 1; }
+  else if (t === ID.saltwater) { sim.set(j, Math.random() < 0.5 ? ID.chlorine : ID.hydrogen); sim.moved[j] = 1; }
+  else if (t === ID.sand && Math.random() < 0.5) { sim.set(j, ID.glass); sim.moved[j] = 1; }
+}
+
+// Things touching a powered coil
+function coilEffect(sim, x, y, table) {
+  for (const [dx, dy] of DIRS4) {
+    const nx = x + dx, ny = y + dy;
+    if (!inBounds(sim, nx, ny)) continue;
+    const j = ny * sim.w + nx, t = sim.type[j];
+    if (!t) continue;
+    const rule = table[t];
+    if (rule) {
+      if (Math.random() < rule[0]) { sim.set(j, rule[1]); sim.moved[j] = 1; }
+    } else if (table.burns && MATS[t].burn && Math.random() < 0.08) {
+      sim.ignite(nx, ny, j);
+    }
+  }
+}
+let HEATER_RULES = null, COOLER_RULES = null;
+function coilRules() {
+  if (HEATER_RULES) return;
+  HEATER_RULES = { burns: true };
+  HEATER_RULES[ID.water] = [0.08, ID.steam];
+  HEATER_RULES[ID.saltwater] = [0.08, ID.salt];
+  HEATER_RULES[ID.ice] = [0.15, ID.water];
+  HEATER_RULES[ID.snow] = [0.2, ID.water];
+  HEATER_RULES[ID.cryo] = [0.3, ID.empty];
+  HEATER_RULES[ID.mud] = [0.05, ID.dirt];
+  COOLER_RULES = {};
+  COOLER_RULES[ID.water] = [0.06, ID.ice];
+  COOLER_RULES[ID.saltwater] = [0.02, ID.ice];
+  COOLER_RULES[ID.steam] = [0.2, ID.snow];
+  COOLER_RULES[ID.lava] = [0.1, ID.obsidian];
+  COOLER_RULES[ID.fire] = [0.4, ID.empty];
 }
 
 // ---------------------------------------------------------------- flowers
@@ -238,25 +316,20 @@ const BEHAVIORS = {
   },
 
   charge(sim, x, y, i) {
+    const orig = sim.aux[i], om = MATS[orig];
     if (sim.life[i] > 0) {
       sim.life[i]--;
-      electrify(sim, x, y);
+      electrify(sim, x, y, om.diode ? [[om.diode, 0]] : DIRS4);
     } else {
-      sim.type[i] = sim.aux[i];   // back to plain metal...
+      sim.type[i] = orig;          // back to plain metal...
       sim.aux[i] = 255;
-      sim.life[i] = 6;            // ...that can't be re-charged for a few frames
+      sim.life[i] = om.hold ?? 6;  // ...that can't be re-charged for a few frames (and counts as "powered")
     }
     return true;
   },
 
   battery(sim, x, y) {
-    if (Math.random() > 0.1) return true;
-    for (const [dx, dy] of DIRS4) {
-      const nx = x + dx, ny = y + dy;
-      if (!inBounds(sim, nx, ny)) continue;
-      const j = ny * sim.w + nx, t = sim.type[j];
-      if (t && MATS[t].conduct && sim.life[j] === 0) chargeCell(sim, j, t);
-    }
+    if (Math.random() < 0.25) powerNeighbors(sim, x, y);
     return true;
   },
 };
@@ -342,6 +415,143 @@ Object.assign(BEHAVIORS, {
       if (!inBounds(sim, nx, ny)) continue;
       const j = ny * w + nx, t = type[j];
       if (t && !MATS[t].indestructible) sim.set(j, 0);
+    }
+    return true;
+  },
+});
+
+// ---------------------------------------------------------------- electric gadgets
+Object.assign(BEHAVIORS, {
+  arc(sim, x, y) {
+    electrify(sim, x, y);
+    return true;
+  },
+
+  lightning(sim, x, y, i) {
+    const { w, h, type } = sim;
+    sim.set(i, 0);
+    // a jagged bolt from the sky, aimed at the click, then on down to whatever it hits
+    let bx = Math.max(0, Math.min(w - 1, x + randInt(-12, 12)));
+    for (let by = 0; by < h; by++) {
+      if (by < y) bx += Math.sign(x - bx) * (Math.random() < 0.4 ? 1 : 0) + randInt(-1, 1);
+      else bx += randInt(-1, 1);
+      bx = Math.max(0, Math.min(w - 1, bx));
+      const j = by * w + bx, t = type[j];
+      if (t === 0 || (MATS[t].state === STATE.GAS && !MATS[t].conduct) || t === ID.arc) {
+        sim.set(j, ID.arc);
+        sim.life[j] = randInt(4, 9);
+        sim.moved[j] = 1;
+        if (Math.random() < 0.08) shootArc(sim, bx, by, randInt(3, 8));   // little side branches
+        continue;
+      }
+      // impact!
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const nx = bx + dx, ny = by + dy;
+          if (!inBounds(sim, nx, ny) || dx * dx + dy * dy > 5) continue;
+          const k = ny * w + nx;
+          if (type[k]) zap(sim, nx, ny, k);
+          else if (Math.random() < 0.3) { sim.setFire(k, randInt(5, 15), true, OUT_RANDOM); sim.moved[k] = 1; }
+        }
+      }
+      if (sim.onExplode) sim.onExplode(bx, by, 3);
+      break;
+    }
+    return true;
+  },
+
+  plate(sim, x, y, i) {
+    const { w, type, life } = sim;
+    let pressed = false;
+    if (y > 0) {
+      const t = type[i - w];
+      pressed = sim.personMap[i - w] === 1 || (t !== 0 && t !== ID.plate && MATS[t].state !== STATE.GAS);
+    }
+    let v = 0;
+    if (pressed) v = 80;
+    else {
+      // a press spreads through the whole plate (and lingers for a moment after you step off)
+      for (const [dx, dy] of DIRS4) {
+        const nx = x + dx, ny = y + dy;
+        if (inBounds(sim, nx, ny) && type[ny * w + nx] === ID.plate) v = Math.max(v, life[ny * w + nx]);
+      }
+      v = Math.max(0, Math.max(v, life[i]) - 1);
+    }
+    life[i] = v;
+    if (v > 0 && Math.random() < 0.3) powerNeighbors(sim, x, y);
+    return true;
+  },
+
+  solar(sim, x, y) {
+    if (Math.random() > 0.3) return true;
+    const { w, type } = sim;
+    for (let yy = y - 1; yy >= 0; yy--) {
+      const t = type[yy * w + x];
+      if (t && MATS[t].state !== STATE.GAS) return true;   // shaded
+    }
+    powerNeighbors(sim, x, y);
+    return true;
+  },
+
+  // Heat makes power. The whole generator block warms up when any part of it touches fire or lava.
+  thermo(sim, x, y, i) {
+    const { w, type, life } = sim;
+    let heat = 0;
+    for (const [dx, dy] of DIRS8) {
+      const nx = x + dx, ny = y + dy;
+      if (!inBounds(sim, nx, ny)) continue;
+      const j = ny * w + nx, t = type[j];
+      if (t === ID.fire || MATS[t].hot || (t === ID.heater && life[j] > 0)) { heat = 20; break; }
+      if (t === ID.thermo) heat = Math.max(heat, life[j] - 1);   // warmth spreads through the block
+    }
+    life[i] = Math.max(heat, life[i] > 0 ? life[i] - 1 : 0);
+    if (life[i] > 0 && Math.random() < 0.3) powerNeighbors(sim, x, y);
+    return true;
+  },
+
+  heater(sim, x, y, i) {
+    if (sim.life[i] > 0) { coilRules(); coilEffect(sim, x, y, HEATER_RULES); }
+    return true;
+  },
+
+  cooler(sim, x, y, i) {
+    if (sim.life[i] > 0) { coilRules(); coilEffect(sim, x, y, COOLER_RULES); }
+    return true;
+  },
+
+  tesla(sim, x, y, i) {
+    if (sim.life[i] > 0 && Math.random() < 0.12) shootArc(sim, x, y, randInt(6, 22));
+    return true;
+  },
+
+  efan(sim, x, y, i) {
+    if (sim.life[i] > 0) BEHAVIORS.fan(sim, x, y, i);
+    return true;
+  },
+
+  // Iron filings fly toward the nearest magnet in range, and stick to it.
+  iron(sim, x, y, i) {
+    const mags = sim.magnets;
+    if (!mags.length) return false;
+    const { w, type } = sim;
+    const R2 = 40 * 40;
+    const stride = Math.ceil(mags.length / 32);
+    let bestDx = 0, bestDy = 0, bd = R2 + 1;
+    for (let n = (Math.random() * stride) | 0; n < mags.length; n += stride) {
+      const mi = mags[n];
+      const dx = (mi % w) - x, dy = ((mi / w) | 0) - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bd) { bd = d2; bestDx = dx; bestDy = dy; }
+    }
+    if (bd > R2) return false;                 // no magnet nearby: fall like normal
+    if (bd <= 2) return true;                  // stuck on
+    const sx = Math.sign(bestDx), sy = Math.sign(bestDy);
+    for (const [ox, oy] of [[sx, sy], [sx, 0], [0, sy]]) {
+      if (!ox && !oy) continue;
+      const nx = x + ox, ny = y + oy;
+      if (!inBounds(sim, nx, ny)) continue;
+      const j = ny * w + nx, t = type[j];
+      if (t === 0 || MATS[t].state === STATE.GAS || MATS[t].state === STATE.LIQUID) { sim.swap(i, j); break; }
     }
     return true;
   },

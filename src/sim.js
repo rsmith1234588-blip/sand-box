@@ -24,6 +24,8 @@ class Sim {
     this.wind = 0;                 // global breeze, -3 (left) .. 3 (right)
     this.portals = [[], []];       // cell indices of blue / orange portals (rebuilt each step)
     this.holes = [];               // cell indices of black holes
+    this.magnets = [];             // cell indices of active magnets
+    this.personMap = new Uint8Array(n);   // 1 where a person's feet are (see people.js)
     this.people = [];              // little people (see people.js)
     this.onExplode = null;         // hook: (x, y, r) => void
   }
@@ -33,6 +35,7 @@ class Sim {
     this.life.fill(0);
     this.aux.fill(0);
     this.people.length = 0;
+    this.personMap.fill(0);
   }
 
   set(i, t) {
@@ -103,39 +106,46 @@ class Sim {
     blue.length = 0;
     orange.length = 0;
     this.holes.length = 0;
-    const A = ID.portalA, B = ID.portalB, BH = ID.blackhole;
+    this.magnets.length = 0;
+    const { life, aux } = this;
+    const A = ID.portalA, B = ID.portalB, BH = ID.blackhole, MG = ID.magnet, EM = ID.emagnet, CH = ID.charge;
     for (let i = 0, n = type.length; i < n; i++) {
       const t = type[i];
+      if (!t) continue;
       if (t === A) blue.push(i);
       else if (t === B) orange.push(i);
       else if (t === BH) this.holes.push(i);
+      else if (t === MG || (t === EM && life[i] > 0) || (t === CH && aux[i] === EM)) this.magnets.push(i);
     }
   }
 
-  // Wind tool: push loose cells within radius r along (dx, dy).
-  blow(cx, cy, r, dx, dy, strength) {
+  // Wind tool: blast loose cells within radius r away from (cx, cy).
+  // Strongest near the center, fading toward the edge.
+  blowOut(cx, cy, r, strength) {
     const { w, h, type } = this;
-    const len = Math.hypot(dx, dy);
-    if (!len) return;
-    const ux = dx / len, uy = dy / len;
     const cells = [];
     for (let oy = -r; oy <= r; oy++) {
       for (let ox = -r; ox <= r; ox++) {
-        if (ox * ox + oy * oy > r * r) continue;
+        const d2 = ox * ox + oy * oy;
+        if (d2 > r * r) continue;
         const x = cx + ox, y = cy + oy;
         if (x < 0 || y < 0 || x >= w || y >= h) continue;
         const t = type[y * w + x];
         if (!t) continue;
         const s = MATS[t].state;
         if (s === STATE.SOLID || s === STATE.EMPTY) continue;
-        cells.push([x, y, ox * ux + oy * uy]);
+        cells.push([x, y, Math.sqrt(d2)]);
       }
     }
-    cells.sort((a, b) => b[2] - a[2]);   // move the leading edge first so cells don't block each other
-    for (const [x, y] of cells) {
+    cells.sort((a, b) => b[2] - a[2]);   // move the outer edge first so cells don't block each other
+    for (const [x, y, d] of cells) {
       let j = y * w + x;
       if (!type[j]) continue;
-      const steps = Math.max(1, Math.round(strength * (0.5 + Math.random())));
+      let ux, uy;
+      if (d < 0.5) { const a = Math.random() * Math.PI * 2; ux = Math.cos(a); uy = Math.sin(a); }
+      else { ux = (x - cx) / d; uy = (y - cy) / d; }
+      const falloff = 1 - 0.7 * (d / (r + 1));
+      const steps = Math.max(1, Math.round(strength * falloff * (0.5 + Math.random())));
       let px = x, py = y, fx = x + 0.5, fy = y + 0.5;
       for (let s = 0; s < steps; s++) {
         // try straight on, then slip around obstacles at +/-45 degrees
@@ -415,14 +425,45 @@ class Sim {
 
   // ------------------------------------------------------------ render
   render(buf) {
-    const { type, shade, life } = this;
+    const { type, shade, life, aux } = this;
+    const halos = [];
+    const FIRE = ID.fire, CHARGE = ID.charge;
     for (let i = 0, n = type.length; i < n; i++) {
       const t = type[i];
-      if (t === 0) buf[i] = BG_COLOR;
-      else if (t === ID.fire) buf[i] = FIRE_COLORS[Math.min(255, life[i] + shade[i] * 4)];
-      else buf[i] = MATS[t].colors[shade[i]];
+      if (t === 0) { buf[i] = BG_COLOR; continue; }
+      if (t === FIRE) { buf[i] = FIRE_COLORS[Math.min(255, life[i] + shade[i] * 4)]; continue; }
+      const m = MATS[t];
+      if (t === CHARGE) {
+        const om = MATS[aux[i]];
+        if (om && om.lit) { buf[i] = om.lit[1]; if (om.halo) halos.push(i); }
+        else buf[i] = m.colors[shade[i]];
+      } else if (m.lit && life[i] > 0) {
+        buf[i] = m.lit[shade[i] & 1];
+        if (m.halo) halos.push(i);
+      } else {
+        buf[i] = m.colors[shade[i]];
+      }
     }
+    this.renderHalos(buf, halos);
     this.renderHoles(buf);
+  }
+
+  // A soft glow in the empty space around lit lamps.
+  renderHalos(buf, halos) {
+    const { w, h, type } = this;
+    const n = Math.min(halos.length, 600);
+    for (let k = 0; k < n; k++) {
+      const hi = halos[k], hx = hi % w, hy = (hi / w) | 0;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          if (dx * dx + dy * dy > 5) continue;
+          const x = hx + dx, y = hy + dy;
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          const j = y * w + x;
+          if (type[j] === 0) buf[j] = HALO_COLOR;
+        }
+      }
+    }
   }
 
   // Black holes get a dark core and a swirling ring so they're visible.

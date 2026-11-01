@@ -11,7 +11,7 @@ const EXTRA_TOOLS = [
   { id: TOOL_PERSON, name: 'Person', color: '#f1c27d', category: 'Life & Weird',
     desc: 'Little people! They walk, climb, swim, ride portals and fans, and run from danger (mostly).' },
   { id: TOOL_WIND, name: 'Wind', color: 'linear-gradient(90deg, #cfe8ff, #6fa8dc)', category: 'Physics',
-    desc: 'Drag across the world to blow things (and people) in that direction.' },
+    desc: 'Hold to blast everything away from the cursor. Bigger brush = wider, stronger wind!' },
 ];
 
 const canvas = document.getElementById('world');
@@ -47,8 +47,6 @@ const state = {
   erasing: false,
   last: null,     // last grid position while drawing
   hover: null,    // current grid position under the pointer
-  windDir: { x: 0, y: -1 },   // last direction the wind tool was dragged
-  windSpeed: 0,
   heldFrames: 0,
 };
 
@@ -128,10 +126,46 @@ function toolRadius() {
   return currentTool() === TOOL_WIND ? state.brush * 2 + 3 : state.brush - 1;
 }
 
+// Click a switch with the Switch tool to flip the whole connected switch.
+function toggleSwitchAt(p) {
+  const r = Math.max(1, state.brush - 1);
+  const isSwitch = i => {
+    const t = sim.type[i];
+    return t === ID.switchOff || t === ID.switchOn || (t === ID.charge && sim.aux[i] === ID.switchOn);
+  };
+  let start = -1;
+  for (let dy = -r; dy <= r && start < 0; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const x = p.x + dx, y = p.y + dy;
+      if (x < 0 || y < 0 || x >= W || y >= H || dx * dx + dy * dy > r * r) continue;
+      if (isSwitch(y * W + x)) { start = y * W + x; break; }
+    }
+  }
+  if (start < 0) return false;
+  const turnOn = sim.type[start] === ID.switchOff;
+  const seen = new Set([start]), stack = [start];
+  while (stack.length) {
+    const i = stack.pop();
+    sim.set(i, turnOn ? ID.switchOn : ID.switchOff);
+    const x = i % W;
+    for (const j of [i - W, i + W, x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1]) {
+      if (j >= 0 && j < W * H && !seen.has(j) && isSwitch(j)) { seen.add(j); stack.push(j); }
+    }
+  }
+  return true;
+}
+
 // Apply the current tool from a to b. `held` = pointer is being held still.
 function applyTool(a, b, held) {
   const t = currentTool();
   if (t === TOOL_WIND) return;   // wind is applied every frame in the loop
+  if (MATS[t]?.single) {         // one at a time: lightning, black holes
+    if ((!held || state.heldFrames % 20 === 0) && b.x >= 0 && b.y >= 0 && b.x < W && b.y < H) {
+      const i = b.y * W + b.x;
+      if (sim.type[i] === 0) sim.set(i, t);
+    }
+    return;
+  }
   if (t === TOOL_PERSON) {
     if (!held || state.heldFrames % 8 === 0) {
       const r = state.brush - 1;
@@ -143,13 +177,13 @@ function applyTool(a, b, held) {
   if (t === ID.empty) erasePeople(sim, b.x, b.y, state.brush + 1);
 }
 
+// Wind blasts outward from the cursor. Brush 1 is a puff, brush 20 is a hurricane.
 function applyWind() {
   const p = state.last;
   const r = toolRadius();
-  const strength = Math.min(6, 1.5 + state.windSpeed);
-  sim.blow(p.x, p.y, r, state.windDir.x, state.windDir.y, strength);
-  pushPeople(sim, p.x, p.y, r, state.windDir.x * strength * 0.12, state.windDir.y * strength * 0.12 - 0.05);
-  state.windSpeed *= 0.85;
+  const strength = 1 + state.brush * 0.45;
+  sim.blowOut(p.x, p.y, r, strength);
+  pushPeopleOut(sim, p.x, p.y, r, 0.15 + state.brush * 0.06);
 }
 
 function paintLine(a, b, t) {
@@ -169,19 +203,18 @@ canvas.addEventListener('pointerdown', e => {
   state.last = gridPos(e);
   state.hover = state.last;
   state.heldFrames = 0;
+  if (!state.erasing && state.selected === ID.switchOff && toggleSwitchAt(state.last)) {
+    state.drawing = false;   // flipped a switch; don't paint
+    return;
+  }
   applyTool(state.last, state.last, false);
 });
 canvas.addEventListener('pointermove', e => {
   const p = gridPos(e);
   state.hover = p;
   if (state.drawing) {
-    const dx = p.x - state.last.x, dy = p.y - state.last.y;
-    const len = Math.hypot(dx, dy);
-    if (currentTool() === TOOL_WIND && len > 0) {
-      state.windDir = { x: dx / len, y: dy / len };
-      state.windSpeed = Math.min(6, state.windSpeed * 0.5 + len);
-    }
-    if (currentTool() !== TOOL_PERSON) applyTool(state.last, p, false);
+    const t = currentTool();
+    if (t !== TOOL_PERSON && !MATS[t]?.single) applyTool(state.last, p, false);
     state.last = p;
   }
 });

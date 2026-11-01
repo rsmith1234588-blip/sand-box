@@ -48,13 +48,16 @@ function erasePeople(sim, x, y, r) {
   sim.people = sim.people.filter(p => (p.x - x) ** 2 + (p.y - 2 - y) ** 2 > r * r);
 }
 
-// Wind tool / explosions push people around.
-function pushPeople(sim, x, y, r, fx, fy) {
+// Wind tool: blow people away from (x, y), harder near the middle.
+function pushPeopleOut(sim, x, y, r, force) {
   for (const p of sim.people) {
     const dx = p.x - x, dy = p.y - 2 - y;
-    if (dx * dx + dy * dy > r * r) continue;
-    p.vx = Math.max(-4, Math.min(4, p.vx + fx));
-    p.vy = Math.max(-4, Math.min(4, p.vy + fy));
+    const d = Math.hypot(dx, dy);
+    if (d > r) continue;
+    const f = force * (1 - 0.7 * d / (r + 1));
+    const ux = d > 0.5 ? dx / d : (Math.random() < 0.5 ? -1 : 1), uy = d > 0.5 ? dy / d : 0;
+    p.vx = Math.max(-4, Math.min(4, p.vx + ux * f));
+    p.vy = Math.max(-4, Math.min(4, p.vy + uy * f - 0.05));
   }
 }
 
@@ -106,7 +109,7 @@ function teleport(sim, p, color) {
 function fanBelow(sim, p) {
   for (let yy = p.y + 1; yy < sim.h && yy <= p.y + 18; yy++) {
     const t = cellAt(sim, p.x, yy);
-    if (t === ID.fan) return true;
+    if (t === ID.fan || (t === ID.efan && sim.life[yy * sim.w + p.x] > 0)) return true;
     if (blocksPerson(t)) return false;
   }
   return false;
@@ -208,6 +211,9 @@ function updatePerson(sim, p) {
 
 function updatePeople(sim) {
   sim.people = sim.people.filter(p => updatePerson(sim, p));
+  // remember where everyone's feet are, for pressure plates
+  sim.personMap.fill(0);
+  for (const p of sim.people) if (p.y >= 0 && p.y < sim.h) sim.personMap[p.y * sim.w + p.x] = 1;
 }
 
 function drawPeople(sim, buf) {

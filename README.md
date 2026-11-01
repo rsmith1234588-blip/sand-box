@@ -9,7 +9,7 @@ Open `index.html` in a browser. No build step or install needed.
 
 - **Left-click / touch**: draw the selected material
 - **Right-click**: erase
-- **Wind tool**: drag across the world to blow things (and people) around
+- **Wind tool**: hold to blast everything away from the cursor. Bigger brush = wider, stronger wind
 - **Breeze** slider: a steady wind that pushes gases, fire, snow and ash
 - **`[` / `]`**: brush size
 - **Space**: pause, **`.`**: step one frame
@@ -23,7 +23,7 @@ Open `index.html` in a browser. No build step or install needed.
 | Liquids      | Water, Salt Water, Oil, Lava, Honey, Mercury, Cement |
 | Solids       | Wall, Stone, Wood, Plant, Metal, Rust, Glass, Ice, Obsidian |
 | Energy       | Fire, Gunpowder, Smoke, Steam, Thermite, Fireworks, Torch |
-| Electric     | Copper, Spark, Battery |
+| Electric     | Copper, Spark, Battery, Lamp, Neon, Switch, Pressure Plate, Diodes, Heating Coil, Cooling Coil, Electromagnet, Magnet, Iron Filings, Tesla Coil, Electric Fan, Solar Panel, Thermo Generator, Lightning |
 | Chemicals    | Acid, Lye, Bleach, Sodium, Liquid Nitrogen, Soap, Hydrogen, Chlorine, Baking Soda, Vinegar, Nitroglycerin, CO₂, Methane |
 | Physics      | Wind (tool), Blue Portal, Orange Portal, Fan, Black Hole |
 | Life & Weird | Person, Muncher, Void, Virus, Clone, Seed, Cloud |
@@ -40,7 +40,11 @@ Some things to try:
 - **Void** swallows anything that touches it (except Wall), and **Clone** copies the first thing that touches it
 - **Virus** spreads through everything it touches, then dies out. Bleach and fire stop it.
 - Drop **Seeds** on mud and they grow into flowers
-- Connect a **Battery** to a copper wire: electricity flows, sets wood alight, and splits water into hydrogen (salt water gives chlorine too)
+- **Electricity**: connect a power source (Battery, Solar Panel, Thermo Generator or Pressure Plate) to a wire
+  (Copper, Metal, Mercury, Iron). Current pulses along it, lights Lamps and Neon, heats or freezes with coils, runs
+  Electric Fans and Electromagnets, makes Tesla Coils throw arcs, sets wood alight, and splits water into hydrogen.
+  Click a **Switch** (with the Switch tool) to flip it. **Diodes** only let current go one way. **Lightning** strikes
+  where you click.
 - Baking soda + vinegar = volcano. The CO₂ it makes smothers fire.
 - Light **Fireworks**, **Thermite** or (carefully) **Nitroglycerin**
 - Sodium + water → lye + hydrogen (and sometimes it explodes)
