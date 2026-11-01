@@ -17,6 +17,8 @@ const M_RESTLESS = Uint8Array.from(MATS, m =>
 const CHUNK_BITS = 4;                 // 16 x 16 pixel chunks
 const CHUNK = 1 << CHUNK_BITS;
 
+const DIAG_LEFT_FIRST = [-1, 1], DIAG_RIGHT_FIRST = [1, -1];
+
 // Liquid equalization tuning
 const EQ_SEARCHES_PER_STEP = 6;   // how many liquid bodies can be checked each step
 const EQ_SEARCH_LIMIT = 4000;     // max cells explored per check
@@ -77,14 +79,16 @@ class Sim {
   }
 
   // Something changed at cell i: make sure its chunk (and the chunk next door, if it's on an edge)
-  // gets updated next frame.
+  // gets updated.
   wake(i) {
     const x = i % this.w, y = (i / this.w) | 0;
-    const cx = x >> CHUNK_BITS, cy = y >> CHUNK_BITS, cw = this.cw, a = this.awakeNext;
+    const cx = x >> CHUNK_BITS, cy = y >> CHUNK_BITS, cw = this.cw, a = this.awakeNext, now = this.awake;
     const lx = x & (CHUNK - 1), ly = y & (CHUNK - 1);
     const x0 = lx === 0 && cx > 0 ? cx - 1 : cx, x1 = lx === CHUNK - 1 && cx < cw - 1 ? cx + 1 : cx;
     const y0 = ly === 0 && cy > 0 ? cy - 1 : cy, y1 = ly === CHUNK - 1 && cy < this.ch - 1 ? cy + 1 : cy;
-    for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) a[yy * cw + xx] = 1;
+    // wake for next frame, and also for the rest of this frame (rows above haven't been processed yet,
+    // so things like a rising bubble don't stall at chunk edges)
+    for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) { a[yy * cw + xx] = 1; now[yy * cw + xx] = 1; }
   }
 
   set(i, t) {
@@ -386,8 +390,9 @@ class Sim {
     const tt = this.type[j];
     if (tt === 0) return true;
     const st = M_STATE[tt];
-    if (st === STATE.GAS || st === STATE.FIRE) return !(M_SINK[tt] && M_DENSITY[tt] >= m.density);
-    if (st === STATE.LIQUID && M_DENSITY[tt] < m.density) {
+    const d = M_DENSITY[m.id];   // compare float32 to float32 (2.05 isn't exact in float32!)
+    if (st === STATE.GAS || st === STATE.FIRE) return !(M_SINK[tt] && M_DENSITY[tt] >= d);
+    if (st === STATE.LIQUID && M_DENSITY[tt] < d) {
       if (Math.random() < 0.5) return true;
       this.pending = true;
     }
@@ -414,11 +419,22 @@ class Sim {
     const { w, h, type } = this;
     if (m.moveChance < 1 && Math.random() > m.moveChance) { this.pending = true; return; }
     const dx = Math.random() < 0.5 ? -1 : 1;
+    const t = m.id;
     if (y + 1 < h) {
       const below = i + w;
-      if (this.canSink(m, below)) { this.swap(i, below); return; }
-      if (x + dx >= 0 && x + dx < w && this.canSink(m, below + dx)) { this.swap(i, below + dx); return; }
-      if (x - dx >= 0 && x - dx < w && this.canSink(m, below - dx)) { this.swap(i, below - dx); return; }
+      // Liquid resting on the same liquid often just "rests" this step. Without this, a gap next to a
+      // pool gets filled in a chain reaction that races across a whole row in one step (stripes);
+      // with it, liquid fills gaps mostly by falling in, and holes rise like real air bubbles.
+      if (type[below] === t) {
+        if (Math.random() < 0.5) return this.restLiquid(x, y, i);
+      } else if (this.canSink(m, below)) { this.swap(i, below); return; }
+      for (const s of dx < 0 ? DIAG_LEFT_FIRST : DIAG_RIGHT_FIRST) {
+        const nx = x + s;
+        if (nx < 0 || nx >= w) continue;
+        const j = below + s;
+        if (type[j] === t) { if (Math.random() < 0.5) return this.restLiquid(x, y, i); }
+        else if (this.canSink(m, j)) { this.swap(i, j); return; }
+      }
     }
     // spread sideways
     if (this.spread(x, y, i, m, dx)) return;
@@ -464,6 +480,16 @@ class Sim {
     return false;
   }
 
+  // A liquid pixel skipped its turn. Keep its chunk awake only if it could actually still move.
+  restLiquid(x, y, i) {
+    const { w, h, type } = this;
+    if ((x > 0 && type[i - 1] === 0) || (x < w - 1 && type[i + 1] === 0) ||
+        (y + 1 < h && ((x > 0 && type[i + w - 1] === 0) || (x < w - 1 && type[i + w + 1] === 0))) ||
+        (y > 0 && type[i - w] === 0 && this.frame - this.levelAt[i] > EQ_RECHECK_FRAMES)) {   // may need leveling
+      this.pending = true;
+    }
+  }
+
   // Slide a liquid up to m.flow cells sideways in direction s. Returns true if it moved.
   spread(x, y, i, m, s) {
     const { w, h, type } = this;
@@ -476,7 +502,7 @@ class Sim {
       const tt = type[j];
       if (tt !== 0 && M_STATE[tt] !== STATE.GAS) {
         // occasionally slip sideways past a lighter liquid so layers settle cleanly
-        if (k === 1 && M_STATE[tt] === STATE.LIQUID && M_DENSITY[tt] < m.density) {
+        if (k === 1 && M_STATE[tt] === STATE.LIQUID && M_DENSITY[tt] < M_DENSITY[m.id]) {
           if (Math.random() < 0.1) best = j;
           else this.pending = true;
         }
@@ -496,7 +522,8 @@ class Sim {
     if (tt === 0) return true;
     if (!vertical) return false;
     const st = M_STATE[tt];
-    if (st === STATE.GAS && tt !== m.id) return m.sink ? M_DENSITY[tt] < m.density : M_DENSITY[tt] > m.density;
+    const d = M_DENSITY[m.id];
+    if (st === STATE.GAS && tt !== m.id) return m.sink ? M_DENSITY[tt] < d : M_DENSITY[tt] > d;
     if (st === STATE.LIQUID && !m.sink) {   // bubble up through liquid
       if (Math.random() < 0.5) return true;
       this.pending = true;
