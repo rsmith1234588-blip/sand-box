@@ -49,8 +49,8 @@ Some things to try:
 ### Adding a material
 
 ```js
-material('mud', { state: STATE.POWDER, density: 2.5, color: '#5a4630', category: 'Powders',
-  desc: 'Wet dirt.' });
+material('clay', { state: STATE.POWDER, density: 2.5, color: '#b5651d', category: 'Powders',
+  desc: 'Bakes hard in heat.' });
 ```
 
 Give it `tick: 'name'` and add a `name(sim, x, y, i)` function to `BEHAVIORS` in `src/behaviors.js` for custom
@@ -60,5 +60,5 @@ behavior.
 
 ```js
 // a + b -> ra + rb, with probability p per contact per frame (null = unchanged)
-react('mud', 'lava', 0.05, 'stone', null, { note: 'Bakes into stone' });
+react('clay', 'lava', 0.05, 'stone', null, { note: 'Bakes into stone' });
 ```
