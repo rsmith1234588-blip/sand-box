@@ -226,6 +226,73 @@ material('blackhole', { name: 'Black Hole', color: '#5a1f8f', vary: 0.6, glow: t
   indestructible: true, immune: true, inedible: true, category: 'Physics',
   desc: 'Pulls in everything nearby (even people) and swallows it.' });
 
+// ---- Big batch of extras
+// Powders
+material('sugar', { state: STATE.POWDER, density: 2.4, color: '#f6f1ea', vary: 0.04, dissolve: 0.3, category: 'Powders',
+  desc: 'Dissolves in water. Heat melts it into caramel.' });
+material('coal', { state: STATE.POWDER, density: 2.6, color: '#2a2a2e', vary: 0.12, dissolve: 0.05, category: 'Powders',
+  burn: { chance: 0.03, life: [150, 250], into: 'ash', intoChance: 0.6 }, desc: 'Hard to light, but burns long and hot.' });
+material('sawdust', { state: STATE.POWDER, density: 1.3, color: '#d8b47a', vary: 0.1, dissolve: 0.2, category: 'Powders',
+  burn: { chance: 0.3, life: [10, 25], into: 'ash', intoChance: 0.3 }, desc: 'Light enough to float on water. Very flammable.' });
+material('gravel', { state: STATE.POWDER, density: 3.2, color: '#77736e', vary: 0.18, dissolve: 0.02, category: 'Powders',
+  desc: 'Heavy chunky stones.' });
+material('glitter', { state: STATE.POWDER, density: 1.6, color: '#ff4fd8', vary: 0, glow: true, dissolve: 0.1,
+  category: 'Powders', desc: 'Sparkly! Light enough to float on water.' });
+material('clay', { state: STATE.POWDER, density: 2.6, color: '#b5651d', vary: 0.06, dissolve: 0.05, category: 'Powders',
+  desc: 'Bake it with fire, lava or a heating coil to make bricks.' });
+
+// Liquids
+material('slime', { state: STATE.LIQUID, density: 2.2, flow: 2, moveChance: 0.25, color: '#6be04a', vary: 0.08,
+  category: 'Liquids', desc: 'Thick green goo.' });
+material('chocolate', { state: STATE.LIQUID, density: 2.3, flow: 2, moveChance: 0.3, color: '#5a3418', vary: 0.05,
+  decay: { into: 'chocobar', p: 0.0008 }, category: 'Liquids', desc: 'Melted chocolate. Slowly sets into a bar.' });
+material('napalm', { state: STATE.LIQUID, density: 1.4, flow: 2, moveChance: 0.5, color: '#c25a1a', vary: 0.06,
+  burn: { chance: 0.12, life: [150, 250] }, category: 'Energy', desc: 'Sticky fuel that burns for a very long time.' });
+material('caramel', { state: STATE.LIQUID, density: 2.3, flow: 1, moveChance: 0.1, color: '#c27c2c', vary: 0.06,
+  burn: { chance: 0.02, life: [20, 40], into: 'ash', intoChance: 0.5 }, desc: 'Melted sugar.' });
+
+// Solids
+material('brick', { color: '#a5462f', vary: 0.1, blast: 0.3, dissolve: 0.02, category: 'Solids', desc: 'Baked clay. Sturdy.' });
+material('gold', { color: '#ffcc33', vary: 0.1, blast: 0.2, conduct: true, immune: true, category: 'Solids',
+  desc: 'Never rusts, acid can\'t touch it, and it conducts electricity.' });
+material('sponge', { color: '#f2d16b', vary: 0, tick: 'sponge', blast: 1, dissolve: 0.2, category: 'Solids',
+  burn: { chance: 0.02, life: [20, 40], into: 'ash', intoChance: 0.5 }, desc: 'Soaks up water. Heat dries it out as steam.' });
+material('crystal', { color: '#c9a0ff', vary: 0, glow: true, blast: 0.6, category: 'Solids',
+  desc: 'Grows in salt water, just like real salt crystals.' });
+material('chocobar', { name: 'Chocolate Bar', color: '#4a2a12', vary: 0.05, blast: 1, dissolve: 0.2, category: 'Solids',
+  desc: 'Solid chocolate. Heat melts it.' });
+
+// Energy
+material('fuse', { color: '#6b4f2a', vary: 0.1, blast: 1, dissolve: 0.2, category: 'Energy',
+  burn: { chance: 0.35, life: [20, 28], into: 'ash', intoChance: 0.3 }, desc: 'Burns slowly along its length. Light gunpowder from a safe distance!' });
+material('c4', { name: 'C4', color: '#e8e2c8', vary: 0.03, explode: 12, c4: true, category: 'Energy',
+  desc: 'Huge explosive. Fire won\'t set it off, only electricity or another explosion.' });
+material('bomb', { color: '#2b2b2b', vary: 0, tick: 'bomb', explode: 10, single: true, category: 'Energy',
+  burn: { chance: 0.3, life: [1, 1] }, desc: 'Ticks for 4 seconds, then BOOM. Fire sets it off early.' });
+material('volcano', { color: '#5b2c1a', vary: 0.1, tick: 'volcano', blast: 0.1, immune: true, category: 'Energy',
+  desc: 'Leaks lava, and every so often erupts.' });
+
+// Chemicals
+material('oxygen', { state: STATE.GAS, density: 0.9, color: '#d6efff', vary: 0.03, category: 'Chemicals',
+  desc: 'Fire burns fiercely in it.' });
+material('helium', { state: STATE.GAS, density: 0.02, color: '#fff0f6', vary: 0.03, category: 'Chemicals',
+  desc: 'The lightest gas. Floats straight up.' });
+
+// Life & weird
+material('fish', { color: '#ff8c1a', vary: 0, tick: 'fish', paint: 0.05, dissolve: 0.3, category: 'Life & Weird',
+  desc: 'Swims in water and slowly breeds. Out of water it flops around and dies.' });
+material('deadfish', { name: 'Dead Fish', state: STATE.POWDER, density: 1.9, color: '#a89f8a', vary: 0.08, dissolve: 0.3,
+  burn: { chance: 0.05, life: [10, 20], into: 'ash', intoChance: 0.6 } });
+material('ant', { color: '#3b1f12', vary: 0.1, tick: 'ant', paint: 0.05, dissolve: 0.3, category: 'Life & Weird',
+  desc: 'Crawls over everything and digs dirt and sand to build anthills.' });
+material('moss', { color: '#4f7d3a', vary: 0.12, tick: 'moss', dissolve: 0.2, category: 'Life & Weird',
+  burn: { chance: 0.05, life: [15, 30], into: 'ash', intoChance: 0.3 }, desc: 'Slowly creeps over damp stone, brick, gravel and wood.' });
+material('treeseed', { name: 'Tree Seed', state: STATE.POWDER, density: 2.3, color: '#8b5a2b', vary: 0.1, tick: 'treeseed',
+  paint: 0.05, dissolve: 0.2, category: 'Life & Weird', desc: 'Drop on dirt or mud and a whole tree grows.' });
+material('trunk', { color: '#6e4524', vary: 0.08, tick: 'trunk', burn: { chance: 0.02, life: [60, 120], into: 'ash', intoChance: 0.35 } });
+material('storm', { name: 'Storm Cloud', color: '#4a4f5c', vary: 0.08, tick: 'storm', category: 'Life & Weird',
+  desc: 'Pours rain, and every now and then, lightning!' });
+
 // Hidden helpers
 material('bubbles', { state: STATE.GAS, density: 0.1, life: [20, 60], expire: { into: 'water', p: 0.5 },
   color: '#e8f6ff', vary: 0.04 });
@@ -270,6 +337,11 @@ setPalette('flower', ['#ff7eb6', '#ff4d4d', '#b36bff', '#fff1a8']);
 setPalette('spark', ['#fffbe0', '#fff7a0', '#ffe14d', '#bfe9ff']);
 setPalette('charge', ['#fffbe0', '#fff7a0', '#ffe14d', '#bfe9ff']);
 setPalette('arc', ['#ffffff', '#cfe8ff', '#a8d4ff', '#e6d6ff']);
+setPalette('glitter', ['#ff4fd8', '#ffd23f', '#3fd8ff', '#b6ff3f']);
+setPalette('sponge', ['#f2d16b', '#c9b066', '#8f8a6e', '#5f6f7a']);   // dry -> soaked
+setPalette('crystal', ['#c9a0ff', '#a0d8ff', '#e0c0ff', '#ffffff']);
+setPalette('bomb', ['#2b2b2b', '#2b2b2b', '#2b2b2b', '#ff2a2a']);
+setPalette('fish', ['#ff8c1a', '#ffb02e', '#ff6a00', '#ffd166']);
 // Colors for powered conductors (and pressed plates)
 function setLit(key, hexes) { MATS[ID[key]].lit = Uint32Array.from(hexes.map(h => packRGB(...hexToRgb(h)))); }
 setLit('lamp', ['#fff3a0', '#fffbe0']);
@@ -445,6 +517,29 @@ guideNote('Picky Muncher + its chosen food', 'More Picky Munchers', 'Ignores eve
 guideNote('Picky Muncher (eats Fire or Lava)', 'Fireproof', 'Immune to heat, but starves twice as fast between meals');
 guideNote('Starving Muncher', 'Dead Muncher', 'Munchers leave a body when they starve. Only a Picky Muncher set to eat Dead Munchers will eat it, and those leave no body');
 guideNote('Reverse Picky + anything but its safe material', 'More Reverse Pickies', 'Eats everything except what you pick');
+
+// Extras
+react('sugar', 'water', 0.03, 'empty', null, { note: 'Sugar dissolves' });
+react('sugar', 'fire', 0.1, 'caramel', null, { note: 'Heat melts sugar into caramel' });
+react('sugar', 'lava', 0.2, 'caramel', null);
+react('clay', 'fire', 0.05, 'brick', null, { note: 'Clay bakes into brick' });
+react('clay', 'lava', 0.1, 'brick', null);
+react('chocobar', 'fire', 0.1, 'chocolate', null, { note: 'Chocolate melts, then sets again as it cools' });
+react('chocobar', 'lava', 0.3, 'chocolate', null);
+react('crystal', 'saltwater', 0.01, null, 'crystal', { note: 'Salt crystals grow' });
+react('oxygen', 'fire', 0.5, 'fire', null, { note: 'Fire roars in oxygen' });
+react('ant', 'fire', 0.3, 'ash', null);
+react('ant', 'lava', 0.5, 'ash', null);
+react('fish', 'lava', 0.5, 'ash', null);
+guideNote('Sponge + Water', 'Wet Sponge', 'Soaks it up. Heat squeezes it back out as steam');
+guideNote('Fire + Fuse', 'A slow burn', 'Burns along the fuse: great for lighting gunpowder from far away');
+guideNote('Electricity / explosion + C4', 'HUGE BOOM', 'Fire alone won\'t set it off');
+guideNote('Bomb', 'BOOM', 'Explodes 4 seconds after you place it (or right away in fire)');
+guideNote('Fish + Water', 'More Fish', 'Fish swim and slowly breed. Out of water they die');
+guideNote('Ant + Dirt / Sand', 'Anthills', 'Ants dig tunnels and pile the dirt up outside');
+guideNote('Moss + damp Stone', 'Moss', 'Moss spreads over wet stone, brick, gravel and wood');
+guideNote('Tree Seed + Dirt / Mud', 'Tree', 'Grows a trunk, branches and leaves');
+guideNote('Storm Cloud', 'Rain + Lightning', 'Lightning strikes whatever is underneath');
 
 // Acid dissolves things (generic)
 for (const m of MATS) {

@@ -27,6 +27,7 @@ function electrify(sim, x, y, dirs = DIRS4) {
     const j = ny * w + nx, t = type[j];
     if (!t) continue;
     const m = MATS[t];
+    if (m.c4) { sim.explode(nx, ny, m.explode); continue; }   // electricity sets off C4
     if (m.conduct) {
       // diodes only accept current flowing in their direction
       if (life[j] === 0 && (m.diode == null || (dy === 0 && dx === m.diode))) chargeCell(sim, j, t);
@@ -77,11 +78,44 @@ function shootArc(sim, x, y, len) {
 // Something got hit by an arc or lightning.
 function zap(sim, x, y, j) {
   const t = sim.type[j], m = MATS[t];
-  if (m.conduct) { if (sim.life[j] === 0) chargeCell(sim, j, t); }
+  if (m.c4) sim.explode(x, y, m.explode);
+  else if (m.conduct) { if (sim.life[j] === 0) chargeCell(sim, j, t); }
   else if (m.burn) sim.ignite(x, y, j);
   else if (t === ID.water) { sim.set(j, ID.hydrogen); sim.moved[j] = 1; }
   else if (t === ID.saltwater) { sim.set(j, Math.random() < 0.5 ? ID.chlorine : ID.hydrogen); sim.moved[j] = 1; }
   else if (t === ID.sand && Math.random() < 0.5) { sim.set(j, ID.glass); sim.moved[j] = 1; }
+}
+
+// A jagged lightning bolt from (startX, startY) heading down, steering toward aimX until it reaches
+// row aimY, then wandering on down until it hits something.
+function bolt(sim, startX, startY, aimX, aimY) {
+  const { w, h, type } = sim;
+  let bx = Math.max(0, Math.min(w - 1, startX));
+  for (let by = startY; by < h; by++) {
+    if (by < aimY) bx += Math.sign(aimX - bx) * (Math.random() < 0.4 ? 1 : 0) + randInt(-1, 1);
+    else bx += randInt(-1, 1);
+    bx = Math.max(0, Math.min(w - 1, bx));
+    const j = by * w + bx, t = type[j];
+    if (t === 0 || (MATS[t].state === STATE.GAS && !MATS[t].conduct) || t === ID.arc) {
+      sim.set(j, ID.arc);
+      sim.life[j] = randInt(4, 9);
+      sim.moved[j] = 1;
+      if (Math.random() < 0.08) shootArc(sim, bx, by, randInt(3, 8));   // little side branches
+      continue;
+    }
+    // impact!
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const nx = bx + dx, ny = by + dy;
+        if (!inBounds(sim, nx, ny) || dx * dx + dy * dy > 5) continue;
+        const k = ny * w + nx;
+        if (type[k]) zap(sim, nx, ny, k);
+        else if (Math.random() < 0.3) { sim.setFire(k, randInt(5, 15), true, OUT_RANDOM); sim.moved[k] = 1; }
+      }
+    }
+    if (sim.onExplode) sim.onExplode(bx, by, 3);
+    return;
+  }
 }
 
 // Things touching a powered coil
@@ -109,12 +143,16 @@ function coilRules() {
   HEATER_RULES[ID.snow] = [0.2, ID.water];
   HEATER_RULES[ID.cryo] = [0.3, ID.empty];
   HEATER_RULES[ID.mud] = [0.05, ID.dirt];
+  HEATER_RULES[ID.clay] = [0.1, ID.brick];
+  HEATER_RULES[ID.chocobar] = [0.15, ID.chocolate];
+  HEATER_RULES[ID.sugar] = [0.1, ID.caramel];
   COOLER_RULES = {};
   COOLER_RULES[ID.water] = [0.06, ID.ice];
   COOLER_RULES[ID.saltwater] = [0.02, ID.ice];
   COOLER_RULES[ID.steam] = [0.2, ID.snow];
   COOLER_RULES[ID.lava] = [0.1, ID.obsidian];
   COOLER_RULES[ID.fire] = [0.4, ID.empty];
+  COOLER_RULES[ID.chocolate] = [0.2, ID.chocobar];
 }
 
 // ---------------------------------------------------------------- flowers
@@ -430,35 +468,9 @@ Object.assign(BEHAVIORS, {
   },
 
   lightning(sim, x, y, i) {
-    const { w, h, type } = sim;
     sim.set(i, 0);
     // a jagged bolt from the sky, aimed at the click, then on down to whatever it hits
-    let bx = Math.max(0, Math.min(w - 1, x + randInt(-12, 12)));
-    for (let by = 0; by < h; by++) {
-      if (by < y) bx += Math.sign(x - bx) * (Math.random() < 0.4 ? 1 : 0) + randInt(-1, 1);
-      else bx += randInt(-1, 1);
-      bx = Math.max(0, Math.min(w - 1, bx));
-      const j = by * w + bx, t = type[j];
-      if (t === 0 || (MATS[t].state === STATE.GAS && !MATS[t].conduct) || t === ID.arc) {
-        sim.set(j, ID.arc);
-        sim.life[j] = randInt(4, 9);
-        sim.moved[j] = 1;
-        if (Math.random() < 0.08) shootArc(sim, bx, by, randInt(3, 8));   // little side branches
-        continue;
-      }
-      // impact!
-      for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
-          const nx = bx + dx, ny = by + dy;
-          if (!inBounds(sim, nx, ny) || dx * dx + dy * dy > 5) continue;
-          const k = ny * w + nx;
-          if (type[k]) zap(sim, nx, ny, k);
-          else if (Math.random() < 0.3) { sim.setFire(k, randInt(5, 15), true, OUT_RANDOM); sim.moved[k] = 1; }
-        }
-      }
-      if (sim.onExplode) sim.onExplode(bx, by, 3);
-      break;
-    }
+    bolt(sim, x + randInt(-12, 12), 0, x, y);
     return true;
   },
 
@@ -662,6 +674,208 @@ Object.assign(BEHAVIORS, {
       const nx = x + dx, ny = y + dy;
       if (inBounds(sim, nx, ny) && type[ny * w + nx] === 0) { sim.swap(i, ny * w + nx); break; }
     }
+    return true;
+  },
+});
+
+// ---------------------------------------------------------------- extras
+const isWater = t => t === ID.water || t === ID.saltwater;
+const solidish = t => t !== 0 && (MATS[t].state === STATE.SOLID || MATS[t].state === STATE.POWDER);
+
+function canopy(sim, cx, cy) {
+  const r = randInt(4, 7);
+  for (let dy = -r; dy <= Math.ceil(r / 2); dy++) {
+    for (let dx = -r - 2; dx <= r + 2; dx++) {
+      if ((dx * dx) / ((r + 2) * (r + 2)) + (dy * dy) / (r * r) > 1) continue;   // a wide oval of leaves
+      const x = cx + dx, y = cy + dy;
+      if (!inBounds(sim, x, y) || !isOpen(sim.type[y * sim.w + x]) || Math.random() < 0.15) continue;
+      sim.set(y * sim.w + x, ID.plant);
+      sim.moved[y * sim.w + x] = 1;
+    }
+  }
+}
+
+Object.assign(BEHAVIORS, {
+  // Soaks up to 40 pixels of water; gets darker as it fills. Heat dries it out as steam.
+  sponge(sim, x, y, i) {
+    const { w, type, extra, shade } = sim;
+    let wet = extra[i];
+    for (const [dx, dy] of DIRS4) {
+      const nx = x + dx, ny = y + dy;
+      if (!inBounds(sim, nx, ny)) continue;
+      const j = ny * w + nx, t = type[j];
+      if (isWater(t) && wet < 40 && Math.random() < 0.3) { sim.set(j, 0); wet++; }
+      else if (wet > 0 && (t === ID.fire || MATS[t].hot || (t === ID.heater && sim.life[j] > 0)) && Math.random() < 0.2) {
+        wet--;
+        if (y > 0 && type[i - w] === 0) sim.set(i - w, ID.steam);
+      }
+    }
+    extra[i] = wet;
+    shade[i] = wet === 0 ? 0 : wet < 14 ? 1 : wet < 28 ? 2 : 3;
+    return true;
+  },
+
+  bomb(sim, x, y, i) {
+    const { life, extra, shade } = sim;
+    if (!extra[i]) { extra[i] = 1; life[i] = 240; }   // about 4 seconds
+    if (life[i] === 0) { sim.explode(x, y, MATS[ID.bomb].explode); return true; }
+    life[i]--;
+    shade[i] = ((life[i] < 60 ? life[i] >> 2 : life[i] >> 4) & 1) ? 3 : 0;   // blinks faster near the end
+    return true;
+  },
+
+  volcano(sim, x, y, i) {
+    const { w, type } = sim;
+    if (y === 0 || type[i - w] !== 0) return true;
+    if (Math.random() < 0.08) sim.set(i - w, ID.lava);
+    if (Math.random() < 0.002) {   // eruption: a fountain of lava and smoke
+      const height = randInt(8, 20);
+      for (let k = 1; k <= height && y - k >= 0; k++) {
+        const j = i - k * w;
+        if (!isOpen(type[j])) break;
+        sim.set(j, Math.random() < 0.8 ? ID.lava : ID.smoke);
+      }
+    }
+    return true;
+  },
+
+  fish(sim, x, y, i) {
+    const { w, h, type, life, aux } = sim;
+    if (aux[i] === 255) { aux[i] = Math.random() < 0.5 ? 0 : 1; life[i] = 255; }   // aux = facing (0 left, 1 right)
+    let wet = false;
+    for (const [dx, dy] of DIRS4) {
+      const nx = x + dx, ny = y + dy;
+      if (inBounds(sim, nx, ny) && isWater(type[ny * w + nx])) { wet = true; break; }
+    }
+    if (!wet) {   // out of water: flop around, fall, and eventually die
+      if (life[i] <= 3) { sim.set(i, ID.deadfish); return true; }
+      life[i] -= 3;
+      if (y + 1 < h && pickyCanPass(type[i + w])) { sim.swap(i, i + w); return true; }
+      if (Math.random() < 0.2) {
+        const s = Math.random() < 0.5 ? -1 : 1;
+        if (x + s >= 0 && x + s < w && type[i + s] === 0) sim.swap(i, i + s);
+      }
+      return true;
+    }
+    life[i] = 255;
+    if (Math.random() < 0.0008 && sim.fishCount < 150) {   // breed
+      const [dx, dy] = DIRS4[(Math.random() * 4) | 0];
+      const nx = x + dx, ny = y + dy;
+      if (inBounds(sim, nx, ny) && isWater(type[ny * w + nx])) { sim.set(ny * w + nx, ID.fish); sim.moved[ny * w + nx] = 1; }
+    }
+    if (Math.random() < 0.4) return true;
+    const s = aux[i] ? 1 : -1;
+    const dy = Math.random() < 0.2 ? (Math.random() < 0.5 ? -1 : 1) : 0;
+    const nx = x + s, ny = y + dy;
+    if (inBounds(sim, nx, ny) && isWater(type[ny * w + nx])) sim.swap(i, ny * w + nx);
+    else if (Math.random() < 0.5) aux[i] ^= 1;   // turn around
+    return true;
+  },
+
+  // Crawls over surfaces. Picks up dirt/sand/mud (digging tunnels) and drops it on the surface (anthills).
+  ant(sim, x, y, i) {
+    const { w, h, type, aux } = sim;
+    if (Math.random() < 0.5) return true;
+    let supported = false;
+    for (const [dx, dy] of DIRS8) {
+      const nx = x + dx, ny = y + dy;
+      if (inBounds(sim, nx, ny) && solidish(type[ny * w + nx])) { supported = true; break; }
+    }
+    if (!supported) {
+      if (y + 1 < h && pickyCanPass(type[i + w])) sim.swap(i, i + w);
+      return true;
+    }
+    const [dx, dy] = DIRS8[(Math.random() * 8) | 0];
+    const nx = x + dx, ny = y + dy;
+    if (!inBounds(sim, nx, ny)) return true;
+    const j = ny * w + nx, t = type[j];
+    if (isOpen(t)) {
+      // only crawl to spots that touch something to hold on to
+      let grip = false;
+      for (const [ex, ey] of DIRS8) {
+        const gx = nx + ex, gy = ny + ey;
+        if (inBounds(sim, gx, gy) && gy * w + gx !== i && solidish(type[gy * w + gx])) { grip = true; break; }
+      }
+      if (!grip) return true;
+      const cargo = aux[i];
+      sim.swap(i, j);
+      if (cargo !== 255 && Math.random() < 0.08 && type[i] === 0) {   // drop what it's carrying
+        sim.set(i, cargo);
+        aux[j] = 255;
+      }
+    } else if (aux[i] === 255 && (t === ID.dirt || t === ID.sand || t === ID.mud) && Math.random() < 0.2) {
+      sim.set(j, 0);       // dig: pick it up
+      sim.swap(i, j);
+      aux[j] = t;
+    }
+    return true;
+  },
+
+  moss(sim, x, y) {
+    if (Math.random() > 0.03) return true;
+    const { w, type } = sim;
+    let damp = false;   // needs water nearby
+    for (let k = 0; k < 6 && !damp; k++) {
+      const sx = x + randInt(-4, 4), sy = y + randInt(-4, 4);
+      if (inBounds(sim, sx, sy) && (isWater(type[sy * w + sx]) || type[sy * w + sx] === ID.mud)) damp = true;
+    }
+    if (!damp) return true;
+    const [dx, dy] = DIRS8[(Math.random() * 8) | 0];
+    const nx = x + dx, ny = y + dy;
+    if (!inBounds(sim, nx, ny)) return true;
+    const t = type[ny * w + nx];
+    if (t === ID.stone || t === ID.brick || t === ID.gravel || t === ID.wood) sim.set(ny * w + nx, ID.moss);
+    return true;
+  },
+
+  treeseed(sim, x, y, i) {
+    if (y + 1 >= sim.h) return false;
+    const below = sim.type[i + sim.w];
+    if ((below === ID.dirt || below === ID.mud) && Math.random() < 0.01) {
+      sim.set(i, ID.trunk);
+      sim.aux[i] = randInt(16, 34);   // how tall
+      sim.moved[i] = 1;
+      return true;
+    }
+    return false;   // otherwise falls like a powder
+  },
+
+  trunk(sim, x, y, i) {
+    const { w, type, aux } = sim;
+    if (aux[i] === 255) aux[i] = randInt(16, 34);
+    if (Math.random() > 0.15) return true;
+    const left = aux[i];
+    if (left === 0 || y < 2 || !isOpen(type[i - w])) {   // reached the top: grow the leaves
+      sim.set(i, ID.wood);
+      canopy(sim, x, y - 1);
+      return true;
+    }
+    sim.set(i - w, ID.trunk);
+    aux[i - w] = left - 1;
+    sim.moved[i - w] = 1;
+    sim.set(i, ID.wood);
+    if (left < 14 && Math.random() < 0.25) {   // a branch with a little tuft of leaves
+      const s = Math.random() < 0.5 ? -1 : 1;
+      let bx = x, by = y;
+      for (let k = 0; k < randInt(2, 5); k++) {
+        bx += s; by -= Math.random() < 0.6 ? 1 : 0;
+        if (!inBounds(sim, bx, by) || !isOpen(type[by * w + bx])) break;
+        sim.set(by * w + bx, ID.wood);
+      }
+      for (let ly = by - 2; ly <= by; ly++) {
+        for (let lx = bx - 2; lx <= bx + 2; lx++) {
+          if (inBounds(sim, lx, ly) && isOpen(type[ly * w + lx]) && Math.random() < 0.7) sim.set(ly * w + lx, ID.plant);
+        }
+      }
+    }
+    return true;
+  },
+
+  storm(sim, x, y, i) {
+    const { w, h, type } = sim;
+    if (y + 1 >= h || type[i + w] !== 0) return true;
+    if (Math.random() < 0.03) sim.set(i + w, ID.water);
+    if (Math.random() < 0.0004) bolt(sim, x, y + 1, x, y + 1);
     return true;
   },
 });

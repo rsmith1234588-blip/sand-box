@@ -179,14 +179,16 @@ class Sim {
     orange.length = 0;
     this.holes.length = 0;
     this.magnets.length = 0;
+    this.fishCount = 0;
     const { life, aux } = this;
-    const A = ID.portalA, B = ID.portalB, BH = ID.blackhole, MG = ID.magnet, EM = ID.emagnet, CH = ID.charge;
+    const FISH = ID.fish, A = ID.portalA, B = ID.portalB, BH = ID.blackhole, MG = ID.magnet, EM = ID.emagnet, CH = ID.charge;
     for (let i = 0, n = type.length; i < n; i++) {
       const t = type[i];
       if (!t) continue;
       if (t === A) blue.push(i);
       else if (t === B) orange.push(i);
       else if (t === BH) this.holes.push(i);
+      else if (t === FISH) this.fishCount++;
       else if (t === MG || (t === EM && life[i] > 0) || (t === CH && aux[i] === EM)) this.magnets.push(i);
     }
   }

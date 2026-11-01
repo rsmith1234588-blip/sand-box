@@ -362,7 +362,14 @@ ui.guideBtn.addEventListener('click', () => ui.guide.showModal());
 ui.guide.addEventListener('click', e => { if (e.target === ui.guide || e.target.closest('.close')) ui.guide.close(); });
 ui.picker.addEventListener('click', e => { if (e.target === ui.picker || e.target.closest('.close')) ui.picker.close(); });
 
+// Tab jumps between three handy brush sizes
+const BRUSH_PRESETS = [1, 5, 20];
+function cycleBrush() {
+  setBrush(BRUSH_PRESETS.find(b => b > state.brush) ?? BRUSH_PRESETS[0]);
+}
+
 window.addEventListener('keydown', e => {
+  if (e.key === 'Tab' && !ui.picker.open && !ui.guide.open) { e.preventDefault(); cycleBrush(); return; }
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'Space') { e.preventDefault(); togglePause(); }
   else if (e.key === '[') setBrush(state.brush - 1);
