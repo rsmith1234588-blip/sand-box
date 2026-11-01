@@ -172,8 +172,10 @@ function select(id) {
   else if (id === ID.picky) {
     const food = MATS[state.pickyTarget];
     const fiery = food.id === ID.fire || food.hot;
-    ui.info.innerHTML = `<b>Picky Muncher</b>: only eats <b>${food.name}</b> and leaves everything else alone.` +
-      (fiery ? ' Fireproof, but starves twice as fast.' : '') + ' Click its button again to pick a different food.';
+    ui.info.innerHTML = `<b>Picky Muncher</b>: only eats <b>${food.name}</b> and leaves everything else alone. ` +
+      'Duplicates with every pixel it eats.' +
+      (fiery ? ' Fireproof, but starves twice as fast.' : '') +
+      (food.id === ID.corpse ? ' Leaves no body when it dies.' : '') + ' Click its button again to pick a different food.';
   } else if (id === ID.antipicky) {
     ui.info.innerHTML = `<b>Reverse Picky</b>: eats everything <i>except</i> <b>${MATS[state.antiTarget].name}</b>. ` +
       'Click its button again to pick a different safe material.';

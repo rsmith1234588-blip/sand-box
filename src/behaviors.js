@@ -595,12 +595,14 @@ Object.assign(BEHAVIORS, {
     if (!(extra[i] & 128)) { extra[i] = 128; life[i] = 255; }                 // newborn
     const fiery = !reverse && (food === ID.fire || !!MATS[food].hot);
 
+    // body-eaters vanish completely when they die: no ash, no body
+    const scavenger = !reverse && food === ID.corpse;
     if (!reverse) {   // (reverse pickies get hurt through the normal reaction table)
       const hz = pickyHazard(sim, x, y, food, fiery);
-      if (hz) { sim.set(i, hz === ID.acid ? 0 : ID.ash); return true; }
+      if (hz) { sim.set(i, hz === ID.acid || scavenger ? 0 : ID.ash); return true; }
     }
     if (Math.random() < 0.35) return true;
-    if (life[i] === 0) { sim.set(i, ID.corpse); return true; }   // starved: leaves a body
+    if (life[i] === 0) { sim.set(i, scavenger ? 0 : ID.corpse); return true; }   // starved: leaves a body (unless it eats them)
     life[i] = fiery ? Math.max(0, life[i] - 2) : life[i] - 1;   // fire & lava eaters starve twice as fast
 
     const edible = t => {
@@ -622,7 +624,7 @@ Object.assign(BEHAVIORS, {
       sim.set(j, 0);
       sim.swap(i, j);
       life[j] = 255;
-      if (fed >= MUNCH_TO_SPLIT) {
+      if (fed >= (reverse ? MUNCH_TO_SPLIT : 1)) {   // picky munchers duplicate with every pixel they eat
         extra[j] = 128;
         sim.set(i, kind);              // a baby with the same taste
         aux[i] = food;
