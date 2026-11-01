@@ -219,7 +219,7 @@ const BEHAVIORS = {
       if (aux[i] === 255 && aux[j] !== 255) aux[i] = aux[j];
     } else if (aux[i] === 255) {
       // not cloning anything yet: learn from the first visitor
-      if (t && t !== ID.void && t !== ID.wall && t !== ID.charge && t !== ID.picky) aux[i] = t;
+      if (t && t !== ID.void && t !== ID.wall && t !== ID.charge && t !== ID.picky && t !== ID.antipicky) aux[i] = t;
     } else if (t === 0 && Math.random() < 0.3) {
       sim.set(j, aux[i]);
       sim.moved[j] = 1;
@@ -557,8 +557,10 @@ Object.assign(BEHAVIORS, {
   },
 });
 
-// ---------------------------------------------------------------- picky muncher
-// Like a muncher, but only eats one material (stored in aux). extra = 128 | meals eaten.
+// ---------------------------------------------------------------- picky munchers
+// Picky Muncher: only eats one material (stored in aux).
+// Reverse Picky: eats everything *except* that material.
+// extra = 128 | meals eaten (bit 7 marks "initialized").
 function pickyCanPass(t) {
   // it can only move through open space and fluids; everything else is in the way
   if (t === 0) return true;
@@ -566,15 +568,47 @@ function pickyCanPass(t) {
   return s === STATE.GAS || s === STATE.LIQUID;
 }
 
+// Does something deadly touch this picky muncher? Eating a hazard makes it immune to it, and
+// fire- or lava-eaters are immune to both. Returns the hazard's id, or 0.
+const PICKY_HAZARDS = () => [[ID.fire, 0.2], [ID.lava, 0.5], [ID.acid, 0.3]];
+function pickyHazard(sim, x, y, food, fiery) {
+  for (const [dx, dy] of DIRS4) {
+    const nx = x + dx, ny = y + dy;
+    if (!inBounds(sim, nx, ny)) continue;
+    const t = sim.type[ny * sim.w + nx];
+    for (const [hz, p] of PICKY_HAZARDS()) {
+      if (t !== hz || t === food) continue;
+      if (fiery && (hz === ID.fire || hz === ID.lava)) continue;
+      if (Math.random() < p) return hz;
+    }
+  }
+  return 0;
+}
+
 Object.assign(BEHAVIORS, {
   picky(sim, x, y, i) {
     const { w, h, type, life, aux, extra } = sim;
+    const kind = type[i];
+    const reverse = !!MATS[kind].reverse;
     const food = aux[i];
     if (!MATS[food] || food === 0) { sim.set(i, ID.muncher); return true; }   // no target: becomes a normal muncher
     if (!(extra[i] & 128)) { extra[i] = 128; life[i] = 255; }                 // newborn
+    const fiery = !reverse && (food === ID.fire || !!MATS[food].hot);
+
+    if (!reverse) {   // (reverse pickies get hurt through the normal reaction table)
+      const hz = pickyHazard(sim, x, y, food, fiery);
+      if (hz) { sim.set(i, hz === ID.acid ? 0 : ID.ash); return true; }
+    }
     if (Math.random() < 0.35) return true;
-    if (life[i] === 0) { sim.set(i, ID.ash); return true; }                   // starved
-    life[i]--;
+    if (life[i] === 0) { sim.set(i, ID.ash); return true; }   // starved
+    life[i] = fiery ? Math.max(0, life[i] - 2) : life[i] - 1;   // fire & lava eaters starve twice as fast
+
+    const edible = t => {
+      if (!t) return false;
+      if (!reverse) return t === food;
+      const m = MATS[t];
+      return t !== food && !m.inedible && !m.hot && m.state !== STATE.FIRE;
+    };
 
     // eat a neighbour if it's the right food
     const start = (Math.random() * 8) | 0;
@@ -583,14 +617,14 @@ Object.assign(BEHAVIORS, {
       const nx = x + dx, ny = y + dy;
       if (!inBounds(sim, nx, ny)) continue;
       const j = ny * w + nx;
-      if (type[j] !== food) continue;
+      if (!edible(type[j])) continue;
       const fed = (extra[i] & 127) + 1;
       sim.set(j, 0);
       sim.swap(i, j);
       life[j] = 255;
       if (fed >= MUNCH_TO_SPLIT) {
         extra[j] = 128;
-        sim.set(i, ID.picky);          // a baby with the same taste
+        sim.set(i, kind);              // a baby with the same taste
         aux[i] = food;
         extra[i] = 128;
         life[i] = 255;
@@ -605,7 +639,7 @@ Object.assign(BEHAVIORS, {
     for (let k = 0; k < 10; k++) {
       const ox = randInt(-10, 10), oy = randInt(-10, 10);
       const sx = x + ox, sy = y + oy;
-      if (!inBounds(sim, sx, sy) || type[sy * w + sx] !== food) continue;
+      if (!inBounds(sim, sx, sy) || !edible(type[sy * w + sx])) continue;
       const mx = Math.sign(ox), my = Math.sign(oy);
       for (const [ax, ay] of [[mx, my], [mx, 0], [0, my]]) {
         if (!ax && !ay) continue;

@@ -37,6 +37,8 @@ const ui = {
   breeze: document.getElementById('breeze'),
   picker: document.getElementById('picker'),
   pickerGrid: document.getElementById('pickerGrid'),
+  pickerTitle: document.getElementById('pickerTitle'),
+  pickerText: document.getElementById('pickerText'),
   breezeVal: document.getElementById('breezeVal'),
 };
 
@@ -51,6 +53,8 @@ const state = {
   hover: null,    // current grid position under the pointer
   heldFrames: 0,
   pickyTarget: ID.sand,       // what the Picky Muncher eats
+  antiTarget: ID.glass,       // what the Reverse Picky won't eat
+  pickerFor: ID.picky,        // which muncher the picker dialog is choosing for
 };
 
 // ------------------------------------------------------------ palette
@@ -88,19 +92,23 @@ function matButton(id, name, color, desc) {
   b.dataset.id = id;
   b.title = desc;
   b.innerHTML = `<span class="swatch${id === ID.empty ? ' eraser' : ''}" style="background:${color}"></span>${name}`;
-  b.addEventListener('click', () => (id === ID.picky ? openPicker() : select(id)));
+  b.addEventListener('click', () => (id === ID.picky || id === ID.antipicky ? openPicker(id) : select(id)));
   return b;
 }
 
 // ------------------------------------------------------------ picky muncher target picker
-function pickyLabel() {
-  const food = MATS[state.pickyTarget];
-  return `<span class="swatch" style="background:${MATS[ID.picky].color}"></span>Picky: ${food.name}`;
+const targetOf = kind => (kind === ID.picky ? state.pickyTarget : state.antiTarget);
+
+function refreshPickyLabels() {
+  for (const [kind, prefix] of [[ID.picky, 'Picky'], [ID.antipicky, 'Reverse']]) {
+    const b = ui.palette.querySelector(`.mat[data-id="${kind}"]`);
+    if (b) b.innerHTML = `<span class="swatch" style="background:${MATS[kind].color}"></span>${prefix}: ${MATS[targetOf(kind)].name}`;
+  }
 }
 
 function buildPicker() {
-  // anything placeable, except other munchers, hot stuff and one-shot tools
-  const skip = new Set([ID.picky, ID.muncher, ID.fire, ID.lava, ID.torch, ID.lightning, ID.blackhole, ID.spark]);
+  // anything placeable, except munchers themselves and one-shot tools
+  const skip = new Set([ID.picky, ID.antipicky, ID.muncher, ID.lightning, ID.blackhole, ID.spark]);
   for (const m of MATS) {
     if (!m.category || skip.has(m.id)) continue;
     const b = document.createElement('button');
@@ -108,18 +116,28 @@ function buildPicker() {
     b.dataset.food = m.id;
     b.innerHTML = `<span class="swatch" style="background:${m.color}"></span>${m.name}`;
     b.addEventListener('click', () => {
-      state.pickyTarget = m.id;
+      if (state.pickerFor === ID.picky) state.pickyTarget = m.id;
+      else state.antiTarget = m.id;
       ui.picker.close();
-      const pb = ui.palette.querySelector(`.mat[data-id="${ID.picky}"]`);
-      if (pb) pb.innerHTML = pickyLabel();
-      select(ID.picky);
+      refreshPickyLabels();
+      select(state.pickerFor);
     });
     ui.pickerGrid.appendChild(b);
   }
 }
 
-function openPicker() {
-  for (const b of ui.pickerGrid.querySelectorAll('.mat')) b.classList.toggle('active', +b.dataset.food === state.pickyTarget);
+function openPicker(kind) {
+  state.pickerFor = kind;
+  if (kind === ID.picky) {
+    ui.pickerTitle.textContent = 'What should this Muncher eat?';
+    ui.pickerText.textContent = 'It will only eat this material, and leave everything else alone. ' +
+      'Fire and lava eaters are fireproof, but starve twice as fast.';
+  } else {
+    ui.pickerTitle.textContent = 'What should this Muncher NOT eat?';
+    ui.pickerText.textContent = 'It will eat everything except this material, which stays safe.';
+  }
+  const current = targetOf(kind);
+  for (const b of ui.pickerGrid.querySelectorAll('.mat')) b.classList.toggle('active', +b.dataset.food === current);
   ui.picker.showModal();
 }
 
@@ -130,8 +148,13 @@ function select(id) {
   const m = EXTRA_TOOLS.find(t => t.id === id) || MATS[id];
   if (id === ID.empty) ui.info.innerHTML = '<b>Eraser</b>: removes anything, including walls and people.';
   else if (id === ID.picky) {
-    ui.info.innerHTML = `<b>Picky Muncher</b>: only eats <b>${MATS[state.pickyTarget].name}</b> and leaves everything ` +
-      'else alone. Click its button again to pick a different food.';
+    const food = MATS[state.pickyTarget];
+    const fiery = food.id === ID.fire || food.hot;
+    ui.info.innerHTML = `<b>Picky Muncher</b>: only eats <b>${food.name}</b> and leaves everything else alone.` +
+      (fiery ? ' Fireproof, but starves twice as fast.' : '') + ' Click its button again to pick a different food.';
+  } else if (id === ID.antipicky) {
+    ui.info.innerHTML = `<b>Reverse Picky</b>: eats everything <i>except</i> <b>${MATS[state.antiTarget].name}</b>. ` +
+      'Click its button again to pick a different safe material.';
   } else ui.info.innerHTML = `<b>${m.name}</b>: ${m.desc}`;
 }
 
@@ -229,7 +252,7 @@ function paintLine(a, b, t) {
   const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / Math.max(1, r / 2)));
   for (let s = 0; s <= steps; s++) {
     sim.paint(Math.round(a.x + (dx * s) / steps), Math.round(a.y + (dy * s) / steps), r, t,
-      t === ID.picky ? state.pickyTarget : undefined);
+      t === ID.picky || t === ID.antipicky ? targetOf(t) : undefined);
   }
 }
 
@@ -371,7 +394,7 @@ function demoScene() {
 buildPalette();
 buildPicker();
 buildGuide();
-{ const pb = ui.palette.querySelector(`.mat[data-id="${ID.picky}"]`); if (pb) pb.innerHTML = pickyLabel(); }
+refreshPickyLabels();
 setBrush(state.brush);
 demoScene();
 fit();

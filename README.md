@@ -26,7 +26,7 @@ Open `index.html` in a browser. No build step or install needed.
 | Electric     | Copper, Spark, Battery, Lamp, Neon, Switch, Pressure Plate, Diodes, Heating Coil, Cooling Coil, Electromagnet, Magnet, Iron Filings, Tesla Coil, Electric Fan, Solar Panel, Thermo Generator, Lightning |
 | Chemicals    | Acid, Lye, Bleach, Sodium, Liquid Nitrogen, Soap, Hydrogen, Chlorine, Baking Soda, Vinegar, Nitroglycerin, CO₂, Methane |
 | Physics      | Wind (tool), Blue Portal, Orange Portal, Fan, Black Hole |
-| Life & Weird | Person, Muncher, Picky Muncher, Void, Virus, Clone, Seed, Cloud |
+| Life & Weird | Person, Muncher, Picky Muncher, Reverse Picky, Void, Virus, Clone, Seed, Cloud |
 
 Some things to try:
 
@@ -38,7 +38,8 @@ Some things to try:
 
 - **Muncher** eats pixels! It tunnels through anything, splits in two when it's eaten enough, and starves when food runs out. Fire, lava and acid kill it.
 - **Picky Muncher**: click its button to choose what it eats. It only eats that material (a sand-eater leaves glass
-  alone), sniffs out its food, and its babies are just as picky.
+  alone), sniffs out its food, and its babies are just as picky. Fire and lava eaters are fireproof but starve twice
+  as fast. **Reverse Picky** is the opposite: it eats everything *except* the material you pick.
 - **Void** swallows anything that touches it (except Wall), and **Clone** copies the first thing that touches it
 - **Virus** spreads through everything it touches, then dies out. Bleach and fire stop it.
 - Drop **Seeds** on mud and they grow into flowers

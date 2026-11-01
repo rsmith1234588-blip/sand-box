@@ -431,13 +431,13 @@ class Sim {
   render(buf) {
     const { type, shade, life, aux } = this;
     const halos = [];
-    const FIRE = ID.fire, CHARGE = ID.charge, PICKY = ID.picky;
+    const FIRE = ID.fire, CHARGE = ID.charge, PICKY = ID.picky, ANTI = ID.antipicky;
     for (let i = 0, n = type.length; i < n; i++) {
       const t = type[i];
       if (t === 0) { buf[i] = BG_COLOR; continue; }
       if (t === FIRE) { buf[i] = FIRE_COLORS[Math.min(255, life[i] + shade[i] * 4)]; continue; }
       const m = MATS[t];
-      if (t === PICKY) {
+      if (t === PICKY || t === ANTI) {
         const food = MATS[aux[i]];
         buf[i] = (shade[i] & 2) && food ? food.colors[1] : m.colors[shade[i]];
       } else if (t === CHARGE) {
