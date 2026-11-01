@@ -2,6 +2,21 @@
 // Cellular-automaton simulation. Depends on materials.js.
 
 const DIRS4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+// Flat lookup tables: much faster than going through objects/Maps in the hot loops.
+const M_STATE = Uint8Array.from(MATS, m => m.state);
+const M_DENSITY = Float32Array.from(MATS, m => m.density);
+const M_SINK = Uint8Array.from(MATS, m => (m.sink ? 1 : 0));
+const RX = new Array(1 << 16).fill(null);   // RX[(a << 8) | b] -> list of reactions
+for (const [key, list] of REACTIONS) RX[key] = list;
+// Materials that must be updated every frame even when nothing around them moves
+const M_RESTLESS = Uint8Array.from(MATS, m =>
+  (m.life || m.decay || m.tick || m.glow || m.hot || m.state === STATE.FIRE) ? 1 : 0);
+
+// The world is split into chunks. A chunk that had nothing happen in it (or next to it) last
+// frame is asleep and skipped entirely, so calm lakes and settled sand piles cost almost nothing.
+const CHUNK_BITS = 4;                 // 16 x 16 pixel chunks
+const CHUNK = 1 << CHUNK_BITS;
+
 const HOLE_CORE = packRGB(0, 0, 0);
 const HOLE_RING = [packRGB(168, 85, 247), packRGB(91, 33, 182)];
 const FREE_FLAG = 128;     // aux bit: fire that drifts (not attached to fuel)
@@ -22,6 +37,11 @@ class Sim {
     this.extra = new Uint8Array(n);   // spare per-cell byte for behaviors (e.g. picky muncher's meal count)
     this.moved = new Uint8Array(n);
     this.frame = 0;
+    this.cw = Math.ceil(w / CHUNK);
+    this.ch = Math.ceil(h / CHUNK);
+    this.awake = new Uint8Array(this.cw * this.ch).fill(1);      // chunks to update this frame
+    this.awakeNext = new Uint8Array(this.cw * this.ch).fill(1);  // chunks to update next frame
+    this.pending = false;          // set when a cell could still do something, so its chunk stays awake
     this.wind = 0;                 // global breeze, -3 (left) .. 3 (right)
     this.portals = [[], []];       // cell indices of blue / orange portals (rebuilt each step)
     this.holes = [];               // cell indices of black holes
@@ -37,11 +57,29 @@ class Sim {
     this.aux.fill(0);
     this.people.length = 0;
     this.personMap.fill(0);
+    this.wakeAll();
+  }
+
+  wakeAll() {
+    this.awake.fill(1);
+    this.awakeNext.fill(1);
+  }
+
+  // Something changed at cell i: make sure its chunk (and the chunk next door, if it's on an edge)
+  // gets updated next frame.
+  wake(i) {
+    const x = i % this.w, y = (i / this.w) | 0;
+    const cx = x >> CHUNK_BITS, cy = y >> CHUNK_BITS, cw = this.cw, a = this.awakeNext;
+    const lx = x & (CHUNK - 1), ly = y & (CHUNK - 1);
+    const x0 = lx === 0 && cx > 0 ? cx - 1 : cx, x1 = lx === CHUNK - 1 && cx < cw - 1 ? cx + 1 : cx;
+    const y0 = ly === 0 && cy > 0 ? cy - 1 : cy, y1 = ly === CHUNK - 1 && cy < this.ch - 1 ? cy + 1 : cy;
+    for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) a[yy * cw + xx] = 1;
   }
 
   set(i, t) {
     const m = MATS[t];
     this.type[i] = t;
+    this.wake(i);
     this.shade[i] = (Math.random() * 4) | 0;
     this.aux[i] = FREE_FLAG | OUT_RANDOM;
     this.extra[i] = 0;
@@ -50,6 +88,7 @@ class Sim {
 
   setFire(i, life, free, out) {
     this.type[i] = ID.fire;
+    this.wake(i);
     this.life[i] = life;
     this.aux[i] = (free ? FREE_FLAG : 0) | out;
     this.shade[i] = (Math.random() * 4) | 0;
@@ -64,6 +103,8 @@ class Sim {
     t = aux[i]; aux[i] = aux[j]; aux[j] = t;
     moved[i] = 1;
     moved[j] = 1;
+    this.wake(i);
+    this.wake(j);
   }
 
   // Paint a filled circle of material t (ID.empty erases).
@@ -88,17 +129,25 @@ class Sim {
   }
 
   step() {
-    const { w, h, type, moved } = this;
+    const { w, h, type, moved, cw } = this;
     moved.fill(0);
     this.frame++;
     this.indexSpecials();
+    // this frame's work list is whatever got woken last frame
+    const awake = this.awakeNext;
+    this.awakeNext = this.awake;
+    this.awake = awake;
+    this.awakeNext.fill(0);
     for (let y = h - 1; y >= 0; y--) {
       const ltr = ((y + this.frame) & 1) === 0;   // alternate scan direction to avoid bias
+      const chunkRow = (y >> CHUNK_BITS) * cw;
       for (let k = 0; k < w; k++) {
         const x = ltr ? k : w - 1 - k;
         const i = y * w + x;
-        if (type[i] === 0 || moved[i]) continue;
+        if (type[i] === 0 || moved[i] || !awake[chunkRow + (x >> CHUNK_BITS)]) continue;
+        this.pending = false;
         this.update(x, y, i);
+        if (this.pending || M_RESTLESS[type[i]] || (this.life[i] > 0 && MATS[type[i]].conduct)) this.wake(i);
       }
     }
   }
@@ -229,9 +278,11 @@ class Sim {
       const j = ny * w + nx;
       const tb = type[j];
       if (tb === 0) continue;
-      const list = REACTIONS.get((t << 8) | tb);
-      if (!list) continue;
-      for (const r of list) {
+      const list = RX[(t << 8) | tb];
+      if (list === null) continue;
+      this.pending = true;   // could react later, stay awake
+      for (let n = 0; n < list.length; n++) {
+        const r = list[n];
         if (Math.random() >= r.p) continue;
         if (r.fx === 'explode') {
           this.explode(x, y, r.r);
@@ -319,9 +370,12 @@ class Sim {
   canSink(m, j) {
     const tt = this.type[j];
     if (tt === 0) return true;
-    const mm = MATS[tt];
-    if (mm.state === STATE.GAS || mm.state === STATE.FIRE) return !(mm.sink && mm.density >= m.density);
-    if (mm.state === STATE.LIQUID && mm.density < m.density) return Math.random() < 0.5;
+    const st = M_STATE[tt];
+    if (st === STATE.GAS || st === STATE.FIRE) return !(M_SINK[tt] && M_DENSITY[tt] >= m.density);
+    if (st === STATE.LIQUID && M_DENSITY[tt] < m.density) {
+      if (Math.random() < 0.5) return true;
+      this.pending = true;
+    }
     return false;
   }
 
@@ -329,6 +383,7 @@ class Sim {
     const { w, h, type } = this;
     if (y + 1 >= h) return;
     const below = i + w;
+    if (this.wind && m.density < 2.3) this.pending = true;   // drifting in the breeze
     if (this.wind && m.density < 2.3 && type[below] === 0 && Math.random() < Math.abs(this.wind) * 0.2) {
       // light powders drift in the breeze as they fall
       const s = Math.sign(this.wind);
@@ -336,49 +391,49 @@ class Sim {
     }
     if (this.canSink(m, below)) { this.swap(i, below); return; }
     const dx = Math.random() < 0.5 ? -1 : 1;
-    for (const s of [dx, -dx]) {
-      const nx = x + s;
-      if (nx < 0 || nx >= w) continue;
-      const j = below + s;
-      if (this.canSink(m, j)) { this.swap(i, j); return; }
-    }
+    if (x + dx >= 0 && x + dx < w && this.canSink(m, below + dx)) { this.swap(i, below + dx); return; }
+    if (x - dx >= 0 && x - dx < w && this.canSink(m, below - dx)) { this.swap(i, below - dx); return; }
   }
 
   moveLiquid(x, y, i, m) {
     const { w, h, type } = this;
-    if (m.moveChance < 1 && Math.random() > m.moveChance) return;
+    if (m.moveChance < 1 && Math.random() > m.moveChance) { this.pending = true; return; }
+    const dx = Math.random() < 0.5 ? -1 : 1;
     if (y + 1 < h) {
       const below = i + w;
       if (this.canSink(m, below)) { this.swap(i, below); return; }
-    }
-    const dx = Math.random() < 0.5 ? -1 : 1;
-    if (y + 1 < h) {
-      for (const s of [dx, -dx]) {
-        const nx = x + s;
-        if (nx < 0 || nx >= w) continue;
-        const j = i + w + s;
-        if (this.canSink(m, j)) { this.swap(i, j); return; }
-      }
+      if (x + dx >= 0 && x + dx < w && this.canSink(m, below + dx)) { this.swap(i, below + dx); return; }
+      if (x - dx >= 0 && x - dx < w && this.canSink(m, below - dx)) { this.swap(i, below - dx); return; }
     }
     // spread sideways
-    for (const s of [dx, -dx]) {
-      let best = -1;
-      for (let k = 1; k <= m.flow; k++) {
-        const nx = x + s * k;
-        if (nx < 0 || nx >= w) break;
-        const j = y * w + nx;
-        const tt = type[j];
-        if (tt !== 0 && MATS[tt].state !== STATE.GAS) {
-          // occasionally slip sideways past a lighter liquid so layers settle cleanly
-          const mm = MATS[tt];
-          if (k === 1 && mm.state === STATE.LIQUID && mm.density < m.density && Math.random() < 0.1) best = j;
-          break;
+    if (this.spread(x, y, i, m, dx)) return;
+    this.spread(x, y, i, m, -dx);
+  }
+
+  // Slide a liquid up to m.flow cells sideways in direction s. Returns true if it moved.
+  spread(x, y, i, m, s) {
+    const { w, h, type } = this;
+    let best = -1;
+    const row = y * w;
+    for (let k = 1; k <= m.flow; k++) {
+      const nx = x + s * k;
+      if (nx < 0 || nx >= w) break;
+      const j = row + nx;
+      const tt = type[j];
+      if (tt !== 0 && M_STATE[tt] !== STATE.GAS) {
+        // occasionally slip sideways past a lighter liquid so layers settle cleanly
+        if (k === 1 && M_STATE[tt] === STATE.LIQUID && M_DENSITY[tt] < m.density) {
+          if (Math.random() < 0.1) best = j;
+          else this.pending = true;
         }
-        best = j;
-        if (y + 1 < h && type[j + w] === 0) break;   // found a drop-off
+        break;
       }
-      if (best >= 0) { this.swap(i, best); return; }
+      best = j;
+      if (y + 1 < h && type[j + w] === 0) break;   // found a drop-off
     }
+    if (best < 0) return false;
+    this.swap(i, best);
+    return true;
   }
 
   // Can gas m move into cell j? vertical = moving in its preferred direction
@@ -386,15 +441,29 @@ class Sim {
     const tt = this.type[j];
     if (tt === 0) return true;
     if (!vertical) return false;
-    const mm = MATS[tt];
-    if (mm.state === STATE.GAS && tt !== m.id) return m.sink ? mm.density < m.density : mm.density > m.density;
-    if (mm.state === STATE.LIQUID && !m.sink) return Math.random() < 0.5;   // bubble up through liquid
+    const st = M_STATE[tt];
+    if (st === STATE.GAS && tt !== m.id) return m.sink ? M_DENSITY[tt] < m.density : M_DENSITY[tt] > m.density;
+    if (st === STATE.LIQUID && !m.sink) {   // bubble up through liquid
+      if (Math.random() < 0.5) return true;
+      this.pending = true;
+    }
     return false;
   }
 
+  // Try to move gas at i by (ox, oy). Returns true if it moved.
+  gasTry(x, y, i, m, ox, oy) {
+    const nx = x + ox, ny = y + oy;
+    if (nx < 0 || ny < 0 || nx >= this.w || ny >= this.h) return false;
+    const j = ny * this.w + nx;
+    if (!this.gasCanEnter(m, j, oy !== 0)) return false;
+    this.swap(i, j);
+    return true;
+  }
+
   moveGas(x, y, i, m) {
-    const { w, h } = this;
+    const { w } = this;
     const dy = m.sink ? 1 : -1;
+    this.pending = true;   // gases keep drifting around, so keep them awake
     if (this.wind && Math.random() < Math.abs(this.wind) * 0.2) {
       const s = Math.sign(this.wind);
       if (x + s >= 0 && x + s < w && this.type[i + s] === 0) { this.swap(i, i + s); return; }
@@ -407,15 +476,11 @@ class Sim {
       return;
     }
     const dx = Math.random() < 0.5 ? -1 : 1;
-    const opts = Math.random() < 0.4
-      ? [[dx, dy], [0, dy], [-dx, dy], [dx, 0], [-dx, 0]]
-      : [[0, dy], [dx, dy], [-dx, dy], [dx, 0], [-dx, 0]];
-    for (const [ox, oy] of opts) {
-      const nx = x + ox, ny = y + oy;
-      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-      const j = ny * w + nx;
-      if (this.gasCanEnter(m, j, oy !== 0)) { this.swap(i, j); return; }
-    }
+    if (Math.random() < 0.4) {
+      if (this.gasTry(x, y, i, m, dx, dy) || this.gasTry(x, y, i, m, 0, dy)) return;
+    } else if (this.gasTry(x, y, i, m, 0, dy) || this.gasTry(x, y, i, m, dx, dy)) return;
+    if (this.gasTry(x, y, i, m, -dx, dy) || this.gasTry(x, y, i, m, dx, 0)) return;
+    this.gasTry(x, y, i, m, -dx, 0);
   }
 
   moveFire(x, y, i) {

@@ -451,3 +451,17 @@ for (const m of MATS) {
   if (m.dissolve > 0) react('acid', m.key, m.dissolve, ['acid', 'acid', 'empty'], ['empty', 'empty', 'smoke']);
 }
 guideNote('Acid + almost anything', 'Smoke', 'Dissolves it. Glass and wall are safe');
+
+// ---------------------------------------------------------------- performance
+// Give every material object exactly the same properties in the same order. The simulation reads
+// these objects for every pixel every frame, and JavaScript engines are much faster when all the
+// objects they read have the same "shape".
+{
+  const keys = new Set();
+  for (const m of MATS) for (const k of Object.keys(m)) keys.add(k);
+  for (let i = 0; i < MATS.length; i++) {
+    const old = MATS[i], m = {};
+    for (const k of keys) m[k] = old[k] === undefined ? null : old[k];
+    MATS[i] = m;
+  }
+}

@@ -53,6 +53,8 @@ const state = {
   paused: false,
   stepOnce: false,
   speed: 1,          // simulation steps per frame (fractions = slow motion)
+  stepsThisSecond: 0,
+  realSpeed: 1,      // how fast the simulation is actually running (it may not keep up at 8x)
   stepDebt: 0,       // accumulated partial steps
   drawing: false,
   erasing: false,
@@ -333,6 +335,7 @@ ui.clear.addEventListener('click', () => sim.clear());
 
 function setBreeze(v) {
   sim.wind = v;
+  sim.wakeAll();   // everything loose may start drifting
   ui.breeze.value = v;
   ui.breezeVal.textContent = v === 0 ? 'off' : v < 0 ? '←'.repeat(-v) : '→'.repeat(v);
 }
@@ -340,6 +343,7 @@ ui.breeze.addEventListener('input', () => setBreeze(+ui.breeze.value));
 
 // Time control: slow motion to fast forward
 const SPEEDS = [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8];
+const FRAME_BUDGET_MS = 12;   // max time per frame spent simulating
 const SPEED_LABELS = ['⅛×', '¼×', '½×', '1×', '2×', '4×', '8×'];
 function setSpeed(index) {
   index = Math.max(0, Math.min(SPEEDS.length - 1, index));
@@ -377,6 +381,13 @@ function drawBrush() {
 }
 
 let frames = 0, fps = 0, lastFpsTime = performance.now(), particles = 0;
+function speedNote() {
+  if (state.speed > 1 && state.realSpeed < state.speed * 0.8) {
+    return ` · ${ui.speedVal.textContent} speed (running at ${state.realSpeed.toFixed(1)}×, the world is busy!)`;
+  }
+  return state.speed !== 1 ? ` · ${ui.speedVal.textContent} speed` : '';
+}
+
 function updateHud() {
   const p = state.hover;
   let under = '';
@@ -386,7 +397,7 @@ function updateHud() {
     else if (t) under = MATS[t].name + ' · ';
   }
   const people = sim.people.length ? ` · ${sim.people.length} people` : '';
-  ui.hud.textContent = `${under}${particles.toLocaleString()} particles${people} · ${fps} fps${state.paused ? ' · paused' : state.speed !== 1 ? ' · ' + ui.speedVal.textContent + ' speed' : ''}`;
+  ui.hud.textContent = `${under}${particles.toLocaleString()} particles${people} · ${fps} fps${state.paused ? ' · paused' : speedNote()}`;
 }
 
 function frame(now) {
@@ -401,13 +412,22 @@ function frame(now) {
     updatePeople(sim);
     state.stepOnce = false;
   } else if (!state.paused) {
-    // run as many simulation steps as the speed asks for (slow motion skips frames)
+    // run as many simulation steps as the speed asks for (slow motion skips frames),
+    // but never more than fits in a frame, so fast forward can't freeze the game
     state.stepDebt += state.speed;
+    const start = performance.now();
+    let steps = 0;
     while (state.stepDebt >= 1) {
       sim.step();
       updatePeople(sim);
       state.stepDebt -= 1;
+      steps++;
+      if (state.stepDebt >= 1 && performance.now() - start > FRAME_BUDGET_MS) {
+        state.stepDebt = 0;   // can't keep up: drop the rest rather than lag
+        break;
+      }
     }
+    state.stepsThisSecond += steps;
   }
   sim.render(buf);
   drawPeople(sim, buf);
@@ -417,6 +437,8 @@ function frame(now) {
   frames++;
   if (now - lastFpsTime > 500) {
     fps = Math.round((frames * 1000) / (now - lastFpsTime));
+    state.realSpeed = state.stepsThisSecond / (frames || 1);
+    state.stepsThisSecond = 0;
     frames = 0;
     lastFpsTime = now;
     particles = sim.count();

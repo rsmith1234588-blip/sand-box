@@ -12,6 +12,7 @@ function isOpen(t) { return t === 0 || MATS[t].state === STATE.GAS; }
 // ---------------------------------------------------------------- electricity
 function chargeCell(sim, j, original) {
   sim.type[j] = ID.charge;
+  sim.wake(j);
   sim.aux[j] = original;   // remember what the conductor was
   sim.life[j] = 2;
   sim.moved[j] = 1;
@@ -28,7 +29,7 @@ function electrify(sim, x, y, dirs = DIRS4) {
     const m = MATS[t];
     if (m.conduct) {
       // diodes only accept current flowing in their direction
-      if (life[j] === 0 && (m.diode === undefined || (dy === 0 && dx === m.diode))) chargeCell(sim, j, t);
+      if (life[j] === 0 && (m.diode == null || (dy === 0 && dx === m.diode))) chargeCell(sim, j, t);
     } else if (m.burn) {
       if (Math.random() < 0.3) sim.ignite(nx, ny, j);
     } else if (t === ID.water) {
@@ -46,7 +47,7 @@ function powerNeighbors(sim, x, y) {
     if (!inBounds(sim, nx, ny)) continue;
     const j = ny * sim.w + nx, t = sim.type[j];
     const m = MATS[t];
-    if (t && m.conduct && sim.life[j] === 0 && (m.diode === undefined || (dy === 0 && dx === m.diode))) {
+    if (t && m.conduct && sim.life[j] === 0 && (m.diode == null || (dy === 0 && dx === m.diode))) {
       chargeCell(sim, j, t);
     }
   }
@@ -322,6 +323,7 @@ const BEHAVIORS = {
       electrify(sim, x, y, om.diode ? [[om.diode, 0]] : DIRS4);
     } else {
       sim.type[i] = orig;          // back to plain metal...
+      sim.wake(i);
       sim.aux[i] = 255;
       sim.life[i] = om.hold ?? 6;  // ...that can't be re-charged for a few frames (and counts as "powered")
     }

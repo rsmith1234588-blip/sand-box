@@ -141,7 +141,7 @@ function updatePerson(sim, p) {
       if (!t) continue;
       const m = MATS[t];
       if (m.deadly) return die(sim, p, t);
-      if (m.portal !== undefined && p.cool === 0) portal = m.portal;
+      if (m.portal != null && p.cool === 0) portal = m.portal;
       if (ox === 0 && k >= 0 && m.state === STATE.LIQUID) wet++;
     }
   }
