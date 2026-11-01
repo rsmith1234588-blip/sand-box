@@ -1,8 +1,18 @@
 'use strict';
-// UI, input and the game loop. Depends on materials.js and sim.js.
+// UI, input and the game loop. Depends on materials.js, sim.js, behaviors.js and people.js.
 
 const W = 320, H = 180;
 const sim = new Sim(W, H);
+installPeopleHooks(sim);
+
+// Tools that aren't materials
+const TOOL_PERSON = 1000, TOOL_WIND = 1001;
+const EXTRA_TOOLS = [
+  { id: TOOL_PERSON, name: 'Person', color: '#f1c27d', category: 'Life & Weird',
+    desc: 'Little people! They walk, climb, swim, ride portals and fans, and run from danger (mostly).' },
+  { id: TOOL_WIND, name: 'Wind', color: 'linear-gradient(90deg, #cfe8ff, #6fa8dc)', category: 'Physics',
+    desc: 'Drag across the world to blow things (and people) in that direction.' },
+];
 
 const canvas = document.getElementById('world');
 canvas.width = W;
@@ -24,6 +34,8 @@ const ui = {
   guide: document.getElementById('guide'),
   guideList: document.getElementById('guideList'),
   stage: document.querySelector('.stage'),
+  breeze: document.getElementById('breeze'),
+  breezeVal: document.getElementById('breezeVal'),
 };
 
 const state = {
@@ -35,25 +47,27 @@ const state = {
   erasing: false,
   last: null,     // last grid position while drawing
   hover: null,    // current grid position under the pointer
+  windDir: { x: 0, y: -1 },   // last direction the wind tool was dragged
+  windSpeed: 0,
+  heldFrames: 0,
 };
 
 // ------------------------------------------------------------ palette
-function cssColor(m) { return m.color; }
-
 function buildPalette() {
   const groups = {};
   for (const m of MATS) {
     if (!m.category) continue;
     (groups[m.category] ||= []).push(m);
   }
-  const order = ['Powders', 'Liquids', 'Solids', 'Energy', 'Electric', 'Chemicals', 'Life & Weird'];
+  for (const t of EXTRA_TOOLS) (groups[t.category] ||= []).unshift(t);
+  const order = ['Powders', 'Liquids', 'Solids', 'Energy', 'Electric', 'Chemicals', 'Physics', 'Life & Weird'];
   for (const g of order) {
     if (!groups[g]) continue;
     const section = document.createElement('section');
     section.innerHTML = `<h2>${g}</h2>`;
     const grid = document.createElement('div');
     grid.className = 'mats';
-    for (const m of groups[g]) grid.appendChild(matButton(m.id, m.name, cssColor(m), m.desc));
+    for (const m of groups[g]) grid.appendChild(matButton(m.id, m.name, m.color, m.desc));
     section.appendChild(grid);
     ui.palette.appendChild(section);
   }
@@ -80,9 +94,9 @@ function matButton(id, name, color, desc) {
 function select(id) {
   state.selected = id;
   for (const b of ui.palette.querySelectorAll('.mat')) b.classList.toggle('active', +b.dataset.id === id);
-  const m = MATS[id];
+  const m = EXTRA_TOOLS.find(t => t.id === id) || MATS[id];
   ui.info.innerHTML = id === ID.empty
-    ? '<b>Eraser</b>: removes anything, including walls.'
+    ? '<b>Eraser</b>: removes anything, including walls and people.'
     : `<b>${m.name}</b>: ${m.desc}`;
 }
 
@@ -110,6 +124,34 @@ function gridPos(e) {
   };
 }
 
+function toolRadius() {
+  return currentTool() === TOOL_WIND ? state.brush * 2 + 3 : state.brush - 1;
+}
+
+// Apply the current tool from a to b. `held` = pointer is being held still.
+function applyTool(a, b, held) {
+  const t = currentTool();
+  if (t === TOOL_WIND) return;   // wind is applied every frame in the loop
+  if (t === TOOL_PERSON) {
+    if (!held || state.heldFrames % 8 === 0) {
+      const r = state.brush - 1;
+      spawnPerson(sim, b.x + randInt(-r, r), b.y);
+    }
+    return;
+  }
+  paintLine(a, b, t);
+  if (t === ID.empty) erasePeople(sim, b.x, b.y, state.brush + 1);
+}
+
+function applyWind() {
+  const p = state.last;
+  const r = toolRadius();
+  const strength = Math.min(6, 1.5 + state.windSpeed);
+  sim.blow(p.x, p.y, r, state.windDir.x, state.windDir.y, strength);
+  pushPeople(sim, p.x, p.y, r, state.windDir.x * strength * 0.12, state.windDir.y * strength * 0.12 - 0.05);
+  state.windSpeed *= 0.85;
+}
+
 function paintLine(a, b, t) {
   const r = state.brush - 1;
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -126,13 +168,20 @@ canvas.addEventListener('pointerdown', e => {
   state.erasing = e.button === 2;
   state.last = gridPos(e);
   state.hover = state.last;
-  paintLine(state.last, state.last, currentTool());
+  state.heldFrames = 0;
+  applyTool(state.last, state.last, false);
 });
 canvas.addEventListener('pointermove', e => {
   const p = gridPos(e);
   state.hover = p;
   if (state.drawing) {
-    paintLine(state.last, p, currentTool());
+    const dx = p.x - state.last.x, dy = p.y - state.last.y;
+    const len = Math.hypot(dx, dy);
+    if (currentTool() === TOOL_WIND && len > 0) {
+      state.windDir = { x: dx / len, y: dy / len };
+      state.windSpeed = Math.min(6, state.windSpeed * 0.5 + len);
+    }
+    if (currentTool() !== TOOL_PERSON) applyTool(state.last, p, false);
     state.last = p;
   }
 });
@@ -159,6 +208,13 @@ function togglePause() {
 ui.pause.addEventListener('click', togglePause);
 ui.step.addEventListener('click', () => { state.stepOnce = true; });
 ui.clear.addEventListener('click', () => sim.clear());
+
+function setBreeze(v) {
+  sim.wind = v;
+  ui.breeze.value = v;
+  ui.breezeVal.textContent = v === 0 ? 'off' : v < 0 ? '←'.repeat(-v) : '→'.repeat(v);
+}
+ui.breeze.addEventListener('input', () => setBreeze(+ui.breeze.value));
 ui.guideBtn.addEventListener('click', () => ui.guide.showModal());
 ui.guide.addEventListener('click', e => { if (e.target === ui.guide || e.target.closest('.close')) ui.guide.close(); });
 
@@ -175,7 +231,7 @@ const BRUSH_RING = ((200 << 24) | (255 << 16) | (255 << 8) | 255) >>> 0;
 function drawBrush() {
   const p = state.hover;
   if (!p) return;
-  const r = state.brush - 1;
+  const r = toolRadius();
   for (let a = 0; a < 64; a++) {
     const ang = (a / 64) * Math.PI * 2;
     const x = Math.round(p.x + Math.cos(ang) * (r + 0.5)), y = Math.round(p.y + Math.sin(ang) * (r + 0.5));
@@ -189,16 +245,27 @@ function updateHud() {
   let under = '';
   if (p && p.x >= 0 && p.y >= 0 && p.x < W && p.y < H) {
     const t = sim.type[p.y * W + p.x];
-    if (t) under = MATS[t].name + ' · ';
+    if (personAt(sim, p.x, p.y)) under = 'Person · ';
+    else if (t) under = MATS[t].name + ' · ';
   }
-  ui.hud.textContent = `${under}${particles.toLocaleString()} particles · ${fps} fps${state.paused ? ' · paused' : ''}`;
+  const people = sim.people.length ? ` · ${sim.people.length} people` : '';
+  ui.hud.textContent = `${under}${particles.toLocaleString()} particles${people} · ${fps} fps${state.paused ? ' · paused' : ''}`;
 }
 
 function frame(now) {
   // keep emitting while the pointer is held still
-  if (state.drawing && state.last && !state.paused) paintLine(state.last, state.last, currentTool());
-  if (!state.paused || state.stepOnce) { sim.step(); state.stepOnce = false; }
+  if (state.drawing && state.last && !state.paused) {
+    state.heldFrames++;
+    if (currentTool() === TOOL_WIND) applyWind();
+    else applyTool(state.last, state.last, true);
+  }
+  if (!state.paused || state.stepOnce) {
+    sim.step();
+    updatePeople(sim);
+    state.stepOnce = false;
+  }
   sim.render(buf);
+  drawPeople(sim, buf);
   drawBrush();
   ctx.putImageData(image, 0, 0);
 
@@ -222,6 +289,11 @@ function demoScene() {
   for (let x = 200; x < 206; x++) for (let y = H - 40; y < H - 6; y++) sim.set(y * W + x, ID.wood);
   for (let x = 250; x < 300; x++) for (let y = H - 14; y < H - 6; y++) sim.set(y * W + x, ID.lava);
   for (let x = 140; x < 180; x++) for (let y = H - 9; y < H - 6; y++) sim.set(y * W + x, ID.plant);
+  // a pair of portals: walk into the blue one on the left, pop out of the orange one up high
+  for (let y = H - 16; y < H - 6; y++) { sim.set(y * W + 8, ID.portalA); sim.set(y * W + 9, ID.portalA); }
+  for (let x = 225; x < 240; x++) sim.set((H - 60) * W + x, ID.portalB);
+  for (let k = 0; k < 3; k++) spawnPerson(sim, 16 + k * 8, H - 7);
+  for (let k = 0; k < 3; k++) spawnPerson(sim, 135 + k * 20, H - 7);
 }
 
 buildPalette();

@@ -260,3 +260,89 @@ const BEHAVIORS = {
     return true;
   },
 };
+
+// ---------------------------------------------------------------- physics toys
+// Which side of a portal a cell has to be on to fall/flow/drift into it.
+function headingInto(m, dy) {
+  if (m.state === STATE.GAS && !m.sink) return dy >= 0;           // rising gas enters from below or the side
+  if (m.state === STATE.FIRE) return dy >= 0;
+  return dy <= 0;                                                  // falling things enter from above or the side
+}
+
+Object.assign(BEHAVIORS, {
+  portal(sim, x, y, i) {
+    const dest = sim.portals[1 - MATS[sim.type[i]].portal];
+    if (!dest.length) return true;
+    const { w, type, moved } = sim;
+    for (const [dx, dy] of DIRS4) {
+      const nx = x + dx, ny = y + dy;
+      if (!inBounds(sim, nx, ny)) continue;
+      const j = ny * w + nx, t = type[j];
+      if (!t || moved[j] || Math.random() < 0.4) continue;
+      const m = MATS[t];
+      const loose = m.state !== STATE.SOLID || t === ID.muncher;
+      if (!loose || !headingInto(m, dy)) continue;
+      // come out the far side of a random cell of the other portal, still moving the same way
+      for (let tries = 0; tries < 3; tries++) {
+        const d = dest[(Math.random() * dest.length) | 0];
+        const ex = (d % w) - dx, ey = ((d / w) | 0) - dy;
+        if (!inBounds(sim, ex, ey) || type[ey * w + ex] !== 0) continue;
+        sim.swap(j, ey * w + ex);
+        break;
+      }
+    }
+    return true;
+  },
+
+  fan(sim, x, y) {
+    const { w, type } = sim;
+    // find how far the updraft reaches (stops at the first solid)
+    let top = y;
+    while (top > 0 && y - top < 18) {
+      const t = type[(top - 1) * w + x];
+      if (t && MATS[t].state === STATE.SOLID) break;
+      top--;
+    }
+    for (let pass = 0; pass < 2; pass++) {   // two passes: stronger than gravity, so things shoot up
+      for (let yy = top + 1; yy < y; yy++) {   // top-down, so the whole column lifts together
+        const j = yy * w + x, t = type[j];
+        if (!t || type[j - w] !== 0 || Math.random() < 0.15) continue;
+        sim.swap(j, j - w);
+      }
+    }
+    return true;
+  },
+
+  blackhole(sim, x, y) {
+    const { w, type } = sim;
+    const R = 32;
+    for (let k = 0; k < 40; k++) {
+      const ox = randInt(-R, R), oy = randInt(-R, R);
+      if ((!ox && !oy) || ox * ox + oy * oy > R * R) continue;
+      const sx = x + ox, sy = y + oy;
+      if (!inBounds(sim, sx, sy)) continue;
+      const j = sy * w + sx, t = type[j];
+      if (!t) continue;
+      const m = MATS[t];
+      if (m.indestructible) continue;
+      if (m.state === STATE.SOLID && Math.random() > 0.08) continue;   // solids are ripped loose slowly
+      // pull one or two steps toward the center
+      let cj = j, cx = sx, cy = sy;
+      for (let s = 0; s < 2; s++) {
+        const tx = cx - Math.sign(cx - x), ty = cy - Math.sign(cy - y);
+        const tj = ty * w + tx;
+        if (type[tj] === ID.blackhole) { sim.set(cj, 0); break; }
+        if (type[tj] !== 0) break;
+        sim.swap(cj, tj);
+        cj = tj; cx = tx; cy = ty;
+      }
+    }
+    for (const [dx, dy] of DIRS8) {   // swallow whatever touches it
+      const nx = x + dx, ny = y + dy;
+      if (!inBounds(sim, nx, ny)) continue;
+      const j = ny * w + nx, t = type[j];
+      if (t && !MATS[t].indestructible) sim.set(j, 0);
+    }
+    return true;
+  },
+});

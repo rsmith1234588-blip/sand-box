@@ -171,6 +171,19 @@ material('seed', { state: STATE.POWDER, density: 2.3, color: '#c8b06a', vary: 0.
   dissolve: 0.2, burn: { chance: 0.2, life: [5, 10] }, category: 'Life & Weird',
   desc: 'Drop on mud (or dirt) and it grows into a flower.' });
 
+// Physics
+material('portalA', { name: 'Blue Portal', color: '#3fa9ff', vary: 0.3, glow: true, tick: 'portal', portal: 0,
+  indestructible: true, immune: true, inedible: true, category: 'Physics',
+  desc: 'Anything that falls, flows or walks in comes out of an Orange Portal.' });
+material('portalB', { name: 'Orange Portal', color: '#ff9a1f', vary: 0.3, glow: true, tick: 'portal', portal: 1,
+  indestructible: true, immune: true, inedible: true, category: 'Physics',
+  desc: 'Anything that falls, flows or walks in comes out of a Blue Portal.' });
+material('fan', { color: '#6d7b8c', vary: 0.05, blast: 0.3, tick: 'fan', category: 'Physics',
+  desc: 'Blows a strong updraft. Powders, liquids, gases and people get lifted.' });
+material('blackhole', { name: 'Black Hole', color: '#5a1f8f', vary: 0.6, glow: true, tick: 'blackhole', paint: 0.03,
+  indestructible: true, immune: true, inedible: true, category: 'Physics',
+  desc: 'Pulls in everything nearby (even people) and swallows it.' });
+
 // Hidden helpers
 material('bubbles', { state: STATE.GAS, density: 0.1, life: [20, 60], expire: { into: 'water', p: 0.5 },
   color: '#e8f6ff', vary: 0.04 });
@@ -183,6 +196,10 @@ material('sparkle', { state: STATE.GAS, density: 0.01, sink: true, life: [15, 45
 
 for (const k of ['wall', 'glass', 'muncher']) MATS[ID[k]].immune = true;
 MATS[ID.metal].conduct = true;
+// Things that hurt little people
+for (const k of ['fire', 'lava', 'acid', 'void', 'muncher', 'virus', 'chlorine', 'charge', 'spark', 'blackhole', 'cryo']) {
+  MATS[ID[k]].deadly = true;
+}
 MATS[ID.wall].inedible = true;
 
 // ---------------------------------------------------------------- colors
@@ -335,6 +352,17 @@ guideNote('Spark / Battery + Metal, Copper, Mercury', 'Electricity', 'Current fl
 guideNote('Electricity + Water', 'Hydrogen', 'Electrolysis splits water apart');
 guideNote('Electricity + Salt Water', 'Chlorine, Hydrogen', 'Chlor-alkali process, used to make bleach');
 guideNote('Electricity + Wood, Oil, Gunpowder...', 'Fire', 'Sparks set flammable things alight');
+
+// Physics
+guideNote('Blue Portal ⇄ Orange Portal', 'Teleport', 'Things go in one color and come out the other, still moving the same way');
+guideNote('Fan + anything above it', 'Updraft', 'Blows powders, liquids, gases and people upward');
+guideNote('Black Hole + everything nearby', 'Nothing', 'Pulls things in and swallows them');
+guideNote('Wind tool', 'Whoosh', 'Drag across the world to blow stuff (and people) around');
+
+// People
+guideNote('Person + Fire, Lava, Acid', 'Ash / Smoke', 'People avoid danger when they see it coming... mostly');
+guideNote('Person + Liquid Nitrogen', 'Ice statue', 'Frozen solid');
+guideNote('Person + Muncher / Void / Black Hole', 'Nothing', 'Gobbled up');
 
 // Life & weird
 guideNote('Muncher + almost anything', 'More Munchers', 'Eats pixels, multiplies when full, starves when hungry');

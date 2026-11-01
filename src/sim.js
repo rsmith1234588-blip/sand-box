@@ -2,6 +2,8 @@
 // Cellular-automaton simulation. Depends on materials.js.
 
 const DIRS4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const HOLE_CORE = packRGB(0, 0, 0);
+const HOLE_RING = [packRGB(168, 85, 247), packRGB(91, 33, 182)];
 const FREE_FLAG = 128;     // aux bit: fire that drifts (not attached to fuel)
 const OUT_RANDOM = 127;    // aux burnout code: random smoke / empty
 
@@ -19,12 +21,18 @@ class Sim {
     this.aux = new Uint8Array(n);
     this.moved = new Uint8Array(n);
     this.frame = 0;
+    this.wind = 0;                 // global breeze, -3 (left) .. 3 (right)
+    this.portals = [[], []];       // cell indices of blue / orange portals (rebuilt each step)
+    this.holes = [];               // cell indices of black holes
+    this.people = [];              // little people (see people.js)
+    this.onExplode = null;         // hook: (x, y, r) => void
   }
 
   clear() {
     this.type.fill(0);
     this.life.fill(0);
     this.aux.fill(0);
+    this.people.length = 0;
   }
 
   set(i, t) {
@@ -76,6 +84,7 @@ class Sim {
     const { w, h, type, moved } = this;
     moved.fill(0);
     this.frame++;
+    this.indexSpecials();
     for (let y = h - 1; y >= 0; y--) {
       const ltr = ((y + this.frame) & 1) === 0;   // alternate scan direction to avoid bias
       for (let k = 0; k < w; k++) {
@@ -83,6 +92,70 @@ class Sim {
         const i = y * w + x;
         if (type[i] === 0 || moved[i]) continue;
         this.update(x, y, i);
+      }
+    }
+  }
+
+  // Remember where portals and black holes are, so they can find each other quickly.
+  indexSpecials() {
+    const { type } = this;
+    const [blue, orange] = this.portals;
+    blue.length = 0;
+    orange.length = 0;
+    this.holes.length = 0;
+    const A = ID.portalA, B = ID.portalB, BH = ID.blackhole;
+    for (let i = 0, n = type.length; i < n; i++) {
+      const t = type[i];
+      if (t === A) blue.push(i);
+      else if (t === B) orange.push(i);
+      else if (t === BH) this.holes.push(i);
+    }
+  }
+
+  // Wind tool: push loose cells within radius r along (dx, dy).
+  blow(cx, cy, r, dx, dy, strength) {
+    const { w, h, type } = this;
+    const len = Math.hypot(dx, dy);
+    if (!len) return;
+    const ux = dx / len, uy = dy / len;
+    const cells = [];
+    for (let oy = -r; oy <= r; oy++) {
+      for (let ox = -r; ox <= r; ox++) {
+        if (ox * ox + oy * oy > r * r) continue;
+        const x = cx + ox, y = cy + oy;
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        const t = type[y * w + x];
+        if (!t) continue;
+        const s = MATS[t].state;
+        if (s === STATE.SOLID || s === STATE.EMPTY) continue;
+        cells.push([x, y, ox * ux + oy * uy]);
+      }
+    }
+    cells.sort((a, b) => b[2] - a[2]);   // move the leading edge first so cells don't block each other
+    for (const [x, y] of cells) {
+      let j = y * w + x;
+      if (!type[j]) continue;
+      const steps = Math.max(1, Math.round(strength * (0.5 + Math.random())));
+      let px = x, py = y, fx = x + 0.5, fy = y + 0.5;
+      for (let s = 0; s < steps; s++) {
+        // try straight on, then slip around obstacles at +/-45 degrees
+        const turn = Math.random() < 0.5 ? 1 : -1;
+        let moved = false;
+        for (const a of [0, turn * 0.8, -turn * 0.8]) {
+          const c = Math.cos(a), sn = Math.sin(a);
+          const vx = ux * c - uy * sn, vy = ux * sn + uy * c;
+          const nfx = fx + vx + (Math.random() - 0.5) * 0.4, nfy = fy + vy + (Math.random() - 0.5) * 0.4;
+          const nx = Math.floor(nfx), ny = Math.floor(nfy);
+          if (nx === px && ny === py) { fx = nfx; fy = nfy; moved = true; break; }
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const k = ny * w + nx;
+          if (type[k] !== 0) continue;
+          this.swap(j, k);
+          j = k; px = nx; py = ny; fx = nfx; fy = nfy;
+          moved = true;
+          break;
+        }
+        if (!moved) break;
       }
     }
   }
@@ -198,6 +271,7 @@ class Sim {
 
   explode(cx, cy, r) {
     const { w, h, type } = this;
+    if (this.onExplode) this.onExplode(cx, cy, r);
     const r2 = r * r;
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -238,9 +312,14 @@ class Sim {
   }
 
   movePowder(x, y, i, m) {
-    const { w, h } = this;
+    const { w, h, type } = this;
     if (y + 1 >= h) return;
     const below = i + w;
+    if (this.wind && m.density < 2.3 && type[below] === 0 && Math.random() < Math.abs(this.wind) * 0.2) {
+      // light powders drift in the breeze as they fall
+      const s = Math.sign(this.wind);
+      if (x + s >= 0 && x + s < w && type[below + s] === 0) { this.swap(i, below + s); return; }
+    }
     if (this.canSink(m, below)) { this.swap(i, below); return; }
     const dx = Math.random() < 0.5 ? -1 : 1;
     for (const s of [dx, -dx]) {
@@ -302,6 +381,10 @@ class Sim {
   moveGas(x, y, i, m) {
     const { w, h } = this;
     const dy = m.sink ? 1 : -1;
+    if (this.wind && Math.random() < Math.abs(this.wind) * 0.2) {
+      const s = Math.sign(this.wind);
+      if (x + s >= 0 && x + s < w && this.type[i + s] === 0) { this.swap(i, i + s); return; }
+    }
     if (m.sink && Math.random() < 0.5) {
       // heavy gas drifts lazily
       const s = Math.random() < 0.5 ? -1 : 1;
@@ -323,7 +406,8 @@ class Sim {
 
   moveFire(x, y, i) {
     if (!(this.aux[i] & FREE_FLAG) || Math.random() < 0.5 || y === 0) return;
-    const nx = x + ((Math.random() * 3) | 0) - 1;
+    let nx = x + ((Math.random() * 3) | 0) - 1;
+    if (this.wind && Math.random() < Math.abs(this.wind) * 0.2) nx = x + Math.sign(this.wind);
     if (nx < 0 || nx >= this.w) return;
     const j = (y - 1) * this.w + nx;
     if (this.type[j] === 0) this.swap(i, j);
@@ -337,6 +421,25 @@ class Sim {
       if (t === 0) buf[i] = BG_COLOR;
       else if (t === ID.fire) buf[i] = FIRE_COLORS[Math.min(255, life[i] + shade[i] * 4)];
       else buf[i] = MATS[t].colors[shade[i]];
+    }
+    this.renderHoles(buf);
+  }
+
+  // Black holes get a dark core and a swirling ring so they're visible.
+  renderHoles(buf) {
+    const { w, h } = this;
+    const spin = this.frame * 0.15;
+    const n = Math.min(this.holes.length, 200);
+    for (let k = 0; k < n; k++) {
+      const hi = this.holes[k], hx = hi % w, hy = (hi / w) | 0;
+      for (let dy = -3; dy <= 3; dy++) {
+        for (let dx = -3; dx <= 3; dx++) {
+          const d2 = dx * dx + dy * dy, x = hx + dx, y = hy + dy;
+          if (d2 > 10 || x < 0 || y < 0 || x >= w || y >= h) continue;
+          if (d2 <= 2) buf[y * w + x] = HOLE_CORE;
+          else if (((Math.atan2(dy, dx) * 2 + spin) | 0) & 1) buf[y * w + x] = HOLE_RING[d2 > 5 ? 1 : 0];
+        }
+      }
     }
   }
 

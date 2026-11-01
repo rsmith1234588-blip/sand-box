@@ -9,6 +9,8 @@ Open `index.html` in a browser. No build step or install needed.
 
 - **Left-click / touch**: draw the selected material
 - **Right-click**: erase
+- **Wind tool**: drag across the world to blow things (and people) around
+- **Breeze** slider: a steady wind that pushes gases, fire, snow and ash
 - **`[` / `]`**: brush size
 - **Space**: pause, **`.`**: step one frame
 - **Reactions** button: in-game guide to every reaction
@@ -23,9 +25,16 @@ Open `index.html` in a browser. No build step or install needed.
 | Energy       | Fire, Gunpowder, Smoke, Steam, Thermite, Fireworks, Torch |
 | Electric     | Copper, Spark, Battery |
 | Chemicals    | Acid, Lye, Bleach, Sodium, Liquid Nitrogen, Soap, Hydrogen, Chlorine, Baking Soda, Vinegar, Nitroglycerin, CO₂, Methane |
-| Life & Weird | Muncher, Void, Virus, Clone, Seed, Cloud |
+| Physics      | Wind (tool), Blue Portal, Orange Portal, Fan, Black Hole |
+| Life & Weird | Person, Muncher, Void, Virus, Clone, Seed, Cloud |
 
 Some things to try:
+
+- **Little people** walk around, climb steps, swim, dig out of sand and turn back at danger. They ride portals and
+  fans, get blown by wind, and are flung by explosions. Fire, lava, acid, electricity, munchers and black holes are
+  bad news. Liquid nitrogen turns them into ice statues.
+- **Portals**: anything that falls, flows, drifts or walks into a blue portal comes out of an orange one (and back)
+- **Fans** blow an updraft; **Black Holes** pull everything in
 
 - **Muncher** eats pixels! It tunnels through anything, splits in two when it's eaten enough, and starves when food runs out. Fire, lava and acid kill it.
 - **Void** swallows anything that touches it (except Wall), and **Clone** copies the first thing that touches it
@@ -44,6 +53,7 @@ Some things to try:
 - `src/materials.js`: material definitions (physics properties, colors) and the reaction table
 - `src/sim.js`: the cellular-automaton simulation (movement, reactions, fire, explosions, rendering)
 - `src/behaviors.js`: special behaviors (munchers, electricity, clone, void, virus, seeds, fireworks...)
+- `src/people.js`: the little people (agents that live on top of the grid)
 - `src/main.js`: UI, input and the game loop
 
 ### Adding a material
