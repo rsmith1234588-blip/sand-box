@@ -110,7 +110,7 @@ function buildPicker() {
   // anything placeable, except munchers themselves and one-shot tools
   const skip = new Set([ID.picky, ID.antipicky, ID.muncher, ID.lightning, ID.blackhole, ID.spark]);
   for (const m of MATS) {
-    if (!m.category || skip.has(m.id)) continue;
+    if ((!m.category && !m.pickerOnly) || skip.has(m.id)) continue;
     const b = document.createElement('button');
     b.className = 'mat';
     b.dataset.food = m.id;
@@ -128,6 +128,9 @@ function buildPicker() {
 
 function openPicker(kind) {
   state.pickerFor = kind;
+  // dead munchers are only on the menu for the Picky Muncher (nothing else eats them anyway)
+  const corpseBtn = ui.pickerGrid.querySelector(`.mat[data-food="${ID.corpse}"]`);
+  if (corpseBtn) corpseBtn.style.display = kind === ID.picky ? "" : "none";
   if (kind === ID.picky) {
     ui.pickerTitle.textContent = 'What should this Muncher eat?';
     ui.pickerText.textContent = 'It will only eat this material, and leave everything else alone. ' +

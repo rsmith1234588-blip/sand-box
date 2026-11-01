@@ -160,7 +160,7 @@ const BEHAVIORS = {
     const { w, h, type, life, aux } = sim;
     if (aux[i] === 255) { aux[i] = 0; life[i] = 255; }   // newborn
     if (Math.random() < 0.35) return true;               // munchers take little breaks
-    if (life[i] === 0) { sim.set(i, ID.ash); return true; }   // starved
+    if (life[i] === 0) { sim.set(i, ID.corpse); return true; }   // starved: leaves a body
     life[i]--;
 
     const start = (Math.random() * 8) | 0;
@@ -600,7 +600,7 @@ Object.assign(BEHAVIORS, {
       if (hz) { sim.set(i, hz === ID.acid ? 0 : ID.ash); return true; }
     }
     if (Math.random() < 0.35) return true;
-    if (life[i] === 0) { sim.set(i, ID.ash); return true; }   // starved
+    if (life[i] === 0) { sim.set(i, ID.corpse); return true; }   // starved: leaves a body
     life[i] = fiery ? Math.max(0, life[i] - 2) : life[i] - 1;   // fire & lava eaters starve twice as fast
 
     const edible = t => {

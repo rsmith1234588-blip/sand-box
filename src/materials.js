@@ -199,6 +199,9 @@ material('picky', { name: 'Picky Muncher', color: '#3df2c0', vary: 0.2, glow: tr
 material('antipicky', { name: 'Reverse Picky', color: '#ff6b4a', vary: 0.2, glow: true, tick: 'picky', reverse: true,
   inedible: true, dissolve: 0.3, paint: 0.04, category: 'Life & Weird',
   desc: 'A muncher that eats everything except the one material you choose.' });
+material('corpse', { name: 'Dead Muncher', state: STATE.POWDER, density: 2.4, color: '#5b4a5e', vary: 0.15,
+  inedible: true, dissolve: 0.2, pickerOnly: true, burn: { chance: 0.05, life: [10, 20], into: 'ash', intoChance: 0.5 },
+  desc: 'What is left of a muncher that starved. Only Picky Munchers can eat it.' });
 material('void', { color: '#1f0d3a', vary: 0.5, glow: true, tick: 'void', indestructible: true, inedible: true,
   immune: true, category: 'Life & Weird', desc: 'A hungry hole. Swallows anything that touches it (except Wall).' });
 material('virus', { color: '#7dd13b', vary: 0.3, glow: true, life: [40, 90], tick: 'virus', immune: true,
@@ -440,6 +443,7 @@ react('antipicky', 'fire', 0.2, 'ash', null);
 react('antipicky', 'lava', 0.5, 'ash', null);
 guideNote('Picky Muncher + its chosen food', 'More Picky Munchers', 'Ignores everything except the one material you pick');
 guideNote('Picky Muncher (eats Fire or Lava)', 'Fireproof', 'Immune to heat, but starves twice as fast between meals');
+guideNote('Starving Muncher', 'Dead Muncher', 'Munchers leave a body when they starve. Only a Picky Muncher set to eat Dead Munchers will eat it');
 guideNote('Reverse Picky + anything but its safe material', 'More Reverse Pickies', 'Eats everything except what you pick');
 
 // Acid dissolves things (generic)
