@@ -100,7 +100,12 @@ function matButton(id, name, color, desc) {
   b.dataset.id = id;
   b.title = desc;
   b.innerHTML = `<span class="swatch${id === ID.empty ? ' eraser' : ''}" style="background:${color}"></span>${name}`;
-  b.addEventListener('click', () => (id === ID.picky || id === ID.antipicky ? openPicker(id) : select(id)));
+  b.addEventListener('click', () => select(id));
+  // munchers with a food menu: single click picks them up right away, double-click opens the menu
+  if (id === ID.picky || id === ID.antipicky) {
+    b.title = 'Double-click to choose ' + (id === ID.picky ? 'what it eats' : 'what it leaves alone');
+    b.addEventListener('dblclick', () => openPicker(id));
+  }
   return b;
 }
 
@@ -181,10 +186,10 @@ function select(id) {
     ui.info.innerHTML = `<b>Picky Muncher</b>: only eats <b>${food.name}</b> and leaves everything else alone. ` +
       'Duplicates with every pixel it eats.' +
       (fiery ? ' Fireproof, but starves twice as fast.' : '') +
-      (food.id === ID.corpse ? ' Leaves no body when it dies.' : '') + ' Click its button again to pick a different food.';
+      (food.id === ID.corpse ? ' Leaves no body when it dies.' : '') + ' Double-click its button to pick a different food.';
   } else if (id === ID.antipicky) {
     ui.info.innerHTML = `<b>Reverse Picky</b>: eats everything <i>except</i> <b>${MATS[state.antiTarget].name}</b>. ` +
-      'Click its button again to pick a different safe material.';
+      'Double-click its button to pick a different safe material.';
   } else ui.info.innerHTML = `<b>${m.name}</b>: ${m.desc}`;
 }
 

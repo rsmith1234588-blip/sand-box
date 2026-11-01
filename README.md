@@ -38,7 +38,7 @@ Some things to try:
 - **Fans** blow an updraft; **Black Holes** pull everything in
 
 - **Muncher** eats pixels! It tunnels through anything, splits in two when it's eaten enough, and starves when food runs out. Fire, lava and acid kill it.
-- **Picky Muncher**: click its button to choose what it eats. It only eats that material (a sand-eater leaves glass
+- **Picky Muncher**: double-click its button to choose what it eats (single click just selects it). It only eats that material (a sand-eater leaves glass
   alone), sniffs out its food, and duplicates with every pixel it eats. Its babies are just as picky. Fire and lava eaters are fireproof but starve twice
   as fast. **Reverse Picky** is the opposite: it eats everything *except* the material you pick.
 - Munchers that starve leave a **Dead Muncher** body behind. Only a Picky Muncher set to eat Dead Munchers will eat it,
