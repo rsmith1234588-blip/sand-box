@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sand Box</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Sand Box</h1>
+      <div class="controls">
+        <button id="pause" title="Space">Pause</button>
+        <button id="step" title="Advance one frame (.)">Step</button>
+        <button id="clear">Clear</button>
+        <button id="guideBtn">Reactions</button>
+        <label class="brush">Brush
+          <input type="range" id="brush" min="1" max="20" value="4">
+          <span id="brushVal">4</span>
+        </label>
+      </div>
+    </header>
+    <main>
+      <div class="stage">
+        <canvas id="world"></canvas>
+        <div id="hud"></div>
+      </div>
+      <aside>
+        <div id="info"></div>
+        <div id="palette"></div>
+        <p class="hint">Left-click to draw · Right-click to erase · <kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>Space</kbd> pause</p>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="guide">
+    <div class="guide-head">
+      <h2>Reaction guide</h2>
+      <button class="close" aria-label="Close">✕</button>
+    </div>
+    <p>Mix these and see what happens. Based (loosely!) on real chemistry.</p>
+    <ul id="guideList"></ul>
+  </dialog>
+
+  <script src="src/materials.js"></script>
+  <script src="src/sim.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
