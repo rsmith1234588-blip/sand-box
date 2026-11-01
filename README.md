@@ -36,6 +36,7 @@ Some things to try:
   bad news. Liquid nitrogen turns them into ice statues.
 - **Portals**: anything that falls, flows, drifts or walks into a blue portal comes out of an orange one (and back)
 - **Fans** blow an updraft; **Black Holes** pull everything in
+- **Liquids level out**: pour water into one side of a U-shaped pipe and it rises up the other side to the same height
 
 - **Muncher** eats pixels! It tunnels through anything, splits in two when it's eaten enough, and starves when food runs out. Fire, lava and acid kill it.
 - **Picky Muncher**: double-click its button to choose what it eats (single click just selects it). It only eats that material (a sand-eater leaves glass

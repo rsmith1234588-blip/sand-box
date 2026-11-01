@@ -17,6 +17,11 @@ const M_RESTLESS = Uint8Array.from(MATS, m =>
 const CHUNK_BITS = 4;                 // 16 x 16 pixel chunks
 const CHUNK = 1 << CHUNK_BITS;
 
+// Liquid equalization tuning
+const EQ_SEARCHES_PER_STEP = 6;   // how many liquid bodies can be checked each step
+const EQ_SEARCH_LIMIT = 4000;     // max cells explored per check
+const EQ_RECHECK_FRAMES = 30;     // a level body isn't re-checked for this long
+
 const HOLE_CORE = packRGB(0, 0, 0);
 const HOLE_RING = [packRGB(168, 85, 247), packRGB(91, 33, 182)];
 const FREE_FLAG = 128;     // aux bit: fire that drifts (not attached to fuel)
@@ -42,6 +47,12 @@ class Sim {
     this.awake = new Uint8Array(this.cw * this.ch).fill(1);      // chunks to update this frame
     this.awakeNext = new Uint8Array(this.cw * this.ch).fill(1);  // chunks to update next frame
     this.pending = false;          // set when a cell could still do something, so its chunk stays awake
+    // liquid equalization (connected liquid levels out, like a U-tube)
+    this.eqQueue = new Int32Array(n);
+    this.eqSeen = new Uint32Array(n);    // search generation that last visited each cell
+    this.eqGen = 0;
+    this.levelAt = new Uint32Array(n);   // frame when this cell's liquid body was last found level
+    this.eqBudget = 0;                   // searches allowed per step
     this.wind = 0;                 // global breeze, -3 (left) .. 3 (right)
     this.portals = [[], []];       // cell indices of blue / orange portals (rebuilt each step)
     this.holes = [];               // cell indices of black holes
@@ -79,6 +90,7 @@ class Sim {
   set(i, t) {
     const m = MATS[t];
     this.type[i] = t;
+    this.levelAt[i] = 0;
     this.wake(i);
     this.shade[i] = (Math.random() * 4) | 0;
     this.aux[i] = FREE_FLAG | OUT_RANDOM;
@@ -103,6 +115,8 @@ class Sim {
     t = aux[i]; aux[i] = aux[j]; aux[j] = t;
     moved[i] = 1;
     moved[j] = 1;
+    this.levelAt[i] = 0;   // things changed here: the liquid may need re-leveling
+    this.levelAt[j] = 0;
     this.wake(i);
     this.wake(j);
   }
@@ -132,6 +146,7 @@ class Sim {
     const { w, h, type, moved, cw } = this;
     moved.fill(0);
     this.frame++;
+    this.eqBudget = EQ_SEARCHES_PER_STEP;
     this.indexSpecials();
     // this frame's work list is whatever got woken last frame
     const awake = this.awakeNext;
@@ -407,7 +422,46 @@ class Sim {
     }
     // spread sideways
     if (this.spread(x, y, i, m, dx)) return;
-    this.spread(x, y, i, m, -dx);
+    if (this.spread(x, y, i, m, -dx)) return;
+    // stuck at the surface: let connected liquid level out (U-tubes, pipes, siphons...)
+    if (y > 0 && type[i - w] === 0 && this.frame - this.levelAt[i] > EQ_RECHECK_FRAMES) {
+      if (this.eqBudget > 0) { this.eqBudget--; this.equalize(i); }
+      else this.pending = true;   // try again next step
+    }
+  }
+
+  // Search the body of liquid connected to cell i. If its highest surface pixel is above the lowest
+  // open spot on its surface, move that pixel there (pressure pushes liquid through
+  // the pipe). Otherwise remember the body as level so it can rest.
+  equalize(i) {
+    const { w, h, type, eqQueue: q, eqSeen: seen } = this;
+    const t = type[i];
+    if (++this.eqGen === 0xffffffff) { seen.fill(0); this.eqGen = 1; }
+    const gen = this.eqGen;
+    let head = 0, tail = 0;
+    q[tail++] = i;
+    seen[i] = gen;
+    let hi = -1, hiY = h, slot = -1, slotY = -1;
+    while (head < tail) {
+      const c = q[head++];
+      const cy = (c / w) | 0, cx = c - cy * w;
+      if (cy > 0 && type[c - w] === 0) {           // a surface pixel
+        if (cy < hiY) { hiY = cy; hi = c; }
+        if (cy - 1 > slotY) { slotY = cy - 1; slot = c - w; }
+      }
+      if (tail >= EQ_SEARCH_LIMIT) continue;       // stop growing, but finish what's queued
+      let j;
+      if (cy + 1 < h && type[j = c + w] === t && seen[j] !== gen) { seen[j] = gen; q[tail++] = j; }
+      if (cx > 0 && type[j = c - 1] === t && seen[j] !== gen) { seen[j] = gen; q[tail++] = j; }
+      if (cx < w - 1 && type[j = c + 1] === t && seen[j] !== gen) { seen[j] = gen; q[tail++] = j; }
+      if (cy > 0 && type[j = c - w] === t && seen[j] !== gen) { seen[j] = gen; q[tail++] = j; }
+    }
+    if (hi >= 0 && slotY > hiY) {   // strictly lower, so pixels only ever move down (no sloshing forever)
+      this.swap(hi, slot);   // the high pixel pops out at the low spot
+      return true;
+    }
+    for (let k = 0; k < tail; k++) this.levelAt[q[k]] = this.frame;   // whole body is level: let it rest
+    return false;
   }
 
   // Slide a liquid up to m.flow cells sideways in direction s. Returns true if it moved.
