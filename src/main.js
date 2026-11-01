@@ -35,6 +35,8 @@ const ui = {
   guideList: document.getElementById('guideList'),
   stage: document.querySelector('.stage'),
   breeze: document.getElementById('breeze'),
+  picker: document.getElementById('picker'),
+  pickerGrid: document.getElementById('pickerGrid'),
   breezeVal: document.getElementById('breezeVal'),
 };
 
@@ -48,6 +50,7 @@ const state = {
   last: null,     // last grid position while drawing
   hover: null,    // current grid position under the pointer
   heldFrames: 0,
+  pickyTarget: ID.sand,       // what the Picky Muncher eats
 };
 
 // ------------------------------------------------------------ palette
@@ -85,17 +88,51 @@ function matButton(id, name, color, desc) {
   b.dataset.id = id;
   b.title = desc;
   b.innerHTML = `<span class="swatch${id === ID.empty ? ' eraser' : ''}" style="background:${color}"></span>${name}`;
-  b.addEventListener('click', () => select(id));
+  b.addEventListener('click', () => (id === ID.picky ? openPicker() : select(id)));
   return b;
 }
+
+// ------------------------------------------------------------ picky muncher target picker
+function pickyLabel() {
+  const food = MATS[state.pickyTarget];
+  return `<span class="swatch" style="background:${MATS[ID.picky].color}"></span>Picky: ${food.name}`;
+}
+
+function buildPicker() {
+  // anything placeable, except other munchers, hot stuff and one-shot tools
+  const skip = new Set([ID.picky, ID.muncher, ID.fire, ID.lava, ID.torch, ID.lightning, ID.blackhole, ID.spark]);
+  for (const m of MATS) {
+    if (!m.category || skip.has(m.id)) continue;
+    const b = document.createElement('button');
+    b.className = 'mat';
+    b.dataset.food = m.id;
+    b.innerHTML = `<span class="swatch" style="background:${m.color}"></span>${m.name}`;
+    b.addEventListener('click', () => {
+      state.pickyTarget = m.id;
+      ui.picker.close();
+      const pb = ui.palette.querySelector(`.mat[data-id="${ID.picky}"]`);
+      if (pb) pb.innerHTML = pickyLabel();
+      select(ID.picky);
+    });
+    ui.pickerGrid.appendChild(b);
+  }
+}
+
+function openPicker() {
+  for (const b of ui.pickerGrid.querySelectorAll('.mat')) b.classList.toggle('active', +b.dataset.food === state.pickyTarget);
+  ui.picker.showModal();
+}
+
 
 function select(id) {
   state.selected = id;
   for (const b of ui.palette.querySelectorAll('.mat')) b.classList.toggle('active', +b.dataset.id === id);
   const m = EXTRA_TOOLS.find(t => t.id === id) || MATS[id];
-  ui.info.innerHTML = id === ID.empty
-    ? '<b>Eraser</b>: removes anything, including walls and people.'
-    : `<b>${m.name}</b>: ${m.desc}`;
+  if (id === ID.empty) ui.info.innerHTML = '<b>Eraser</b>: removes anything, including walls and people.';
+  else if (id === ID.picky) {
+    ui.info.innerHTML = `<b>Picky Muncher</b>: only eats <b>${MATS[state.pickyTarget].name}</b> and leaves everything ` +
+      'else alone. Click its button again to pick a different food.';
+  } else ui.info.innerHTML = `<b>${m.name}</b>: ${m.desc}`;
 }
 
 function buildGuide() {
@@ -191,7 +228,8 @@ function paintLine(a, b, t) {
   const dx = b.x - a.x, dy = b.y - a.y;
   const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / Math.max(1, r / 2)));
   for (let s = 0; s <= steps; s++) {
-    sim.paint(Math.round(a.x + (dx * s) / steps), Math.round(a.y + (dy * s) / steps), r, t);
+    sim.paint(Math.round(a.x + (dx * s) / steps), Math.round(a.y + (dy * s) / steps), r, t,
+      t === ID.picky ? state.pickyTarget : undefined);
   }
 }
 
@@ -250,6 +288,7 @@ function setBreeze(v) {
 ui.breeze.addEventListener('input', () => setBreeze(+ui.breeze.value));
 ui.guideBtn.addEventListener('click', () => ui.guide.showModal());
 ui.guide.addEventListener('click', e => { if (e.target === ui.guide || e.target.closest('.close')) ui.guide.close(); });
+ui.picker.addEventListener('click', e => { if (e.target === ui.picker || e.target.closest('.close')) ui.picker.close(); });
 
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
@@ -330,7 +369,9 @@ function demoScene() {
 }
 
 buildPalette();
+buildPicker();
 buildGuide();
+{ const pb = ui.palette.querySelector(`.mat[data-id="${ID.picky}"]`); if (pb) pb.innerHTML = pickyLabel(); }
 setBrush(state.brush);
 demoScene();
 fit();

@@ -144,6 +144,13 @@ dialog {
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+.picker-grid {
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.picker-grid .mat.active { border-color: var(--accent); color: var(--accent); }
+
 dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .guide-head { display: flex; justify-content: space-between; align-items: center; }
 .guide-head h2 { margin: 0; font-size: 18px; color: var(--accent); }

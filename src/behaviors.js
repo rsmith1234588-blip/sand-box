@@ -219,7 +219,7 @@ const BEHAVIORS = {
       if (aux[i] === 255 && aux[j] !== 255) aux[i] = aux[j];
     } else if (aux[i] === 255) {
       // not cloning anything yet: learn from the first visitor
-      if (t && t !== ID.void && t !== ID.wall && t !== ID.charge) aux[i] = t;
+      if (t && t !== ID.void && t !== ID.wall && t !== ID.charge && t !== ID.picky) aux[i] = t;
     } else if (t === 0 && Math.random() < 0.3) {
       sim.set(j, aux[i]);
       sim.moved[j] = 1;
@@ -552,6 +552,77 @@ Object.assign(BEHAVIORS, {
       if (!inBounds(sim, nx, ny)) continue;
       const j = ny * w + nx, t = type[j];
       if (t === 0 || MATS[t].state === STATE.GAS || MATS[t].state === STATE.LIQUID) { sim.swap(i, j); break; }
+    }
+    return true;
+  },
+});
+
+// ---------------------------------------------------------------- picky muncher
+// Like a muncher, but only eats one material (stored in aux). extra = 128 | meals eaten.
+function pickyCanPass(t) {
+  // it can only move through open space and fluids; everything else is in the way
+  if (t === 0) return true;
+  const s = MATS[t].state;
+  return s === STATE.GAS || s === STATE.LIQUID;
+}
+
+Object.assign(BEHAVIORS, {
+  picky(sim, x, y, i) {
+    const { w, h, type, life, aux, extra } = sim;
+    const food = aux[i];
+    if (!MATS[food] || food === 0) { sim.set(i, ID.muncher); return true; }   // no target: becomes a normal muncher
+    if (!(extra[i] & 128)) { extra[i] = 128; life[i] = 255; }                 // newborn
+    if (Math.random() < 0.35) return true;
+    if (life[i] === 0) { sim.set(i, ID.ash); return true; }                   // starved
+    life[i]--;
+
+    // eat a neighbour if it's the right food
+    const start = (Math.random() * 8) | 0;
+    for (let k = 0; k < 8; k++) {
+      const [dx, dy] = DIRS8[(start + k) & 7];
+      const nx = x + dx, ny = y + dy;
+      if (!inBounds(sim, nx, ny)) continue;
+      const j = ny * w + nx;
+      if (type[j] !== food) continue;
+      const fed = (extra[i] & 127) + 1;
+      sim.set(j, 0);
+      sim.swap(i, j);
+      life[j] = 255;
+      if (fed >= MUNCH_TO_SPLIT) {
+        extra[j] = 128;
+        sim.set(i, ID.picky);          // a baby with the same taste
+        aux[i] = food;
+        extra[i] = 128;
+        life[i] = 255;
+        sim.moved[i] = 1;
+      } else {
+        extra[j] = 128 | fed;
+      }
+      return true;
+    }
+
+    // sniff around for food and head toward it
+    for (let k = 0; k < 10; k++) {
+      const ox = randInt(-10, 10), oy = randInt(-10, 10);
+      const sx = x + ox, sy = y + oy;
+      if (!inBounds(sim, sx, sy) || type[sy * w + sx] !== food) continue;
+      const mx = Math.sign(ox), my = Math.sign(oy);
+      for (const [ax, ay] of [[mx, my], [mx, 0], [0, my]]) {
+        if (!ax && !ay) continue;
+        const nx = x + ax, ny = y + ay;
+        if (!inBounds(sim, nx, ny)) continue;
+        const j = ny * w + nx;
+        if (pickyCanPass(type[j])) { sim.swap(i, j); return true; }
+      }
+      break;
+    }
+
+    // nothing in sight: fall (sinking through liquids and gases), or wander
+    if (y + 1 < h && pickyCanPass(type[i + w])) { sim.swap(i, i + w); return true; }
+    for (let k = 0; k < 8; k++) {
+      const [dx, dy] = DIRS8[(start + k) & 7];
+      const nx = x + dx, ny = y + dy;
+      if (inBounds(sim, nx, ny) && type[ny * w + nx] === 0) { sim.swap(i, ny * w + nx); break; }
     }
     return true;
   },

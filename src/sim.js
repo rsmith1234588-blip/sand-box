@@ -19,6 +19,7 @@ class Sim {
     this.life = new Uint8Array(n);
     this.shade = new Uint8Array(n);
     this.aux = new Uint8Array(n);
+    this.extra = new Uint8Array(n);   // spare per-cell byte for behaviors (e.g. picky muncher's meal count)
     this.moved = new Uint8Array(n);
     this.frame = 0;
     this.wind = 0;                 // global breeze, -3 (left) .. 3 (right)
@@ -43,6 +44,7 @@ class Sim {
     this.type[i] = t;
     this.shade[i] = (Math.random() * 4) | 0;
     this.aux[i] = FREE_FLAG | OUT_RANDOM;
+    this.extra[i] = 0;
     this.life[i] = m.life ? randInt(m.life[0], m.life[1]) : 0;
   }
 
@@ -54,8 +56,9 @@ class Sim {
   }
 
   swap(i, j) {
-    const { type, life, shade, aux, moved } = this;
+    const { type, life, shade, aux, extra, moved } = this;
     let t = type[i]; type[i] = type[j]; type[j] = t;
+    t = extra[i]; extra[i] = extra[j]; extra[j] = t;
     t = life[i]; life[i] = life[j]; life[j] = t;
     t = shade[i]; shade[i] = shade[j]; shade[j] = t;
     t = aux[i]; aux[i] = aux[j]; aux[j] = t;
@@ -64,7 +67,7 @@ class Sim {
   }
 
   // Paint a filled circle of material t (ID.empty erases).
-  paint(cx, cy, r, t) {
+  paint(cx, cy, r, t, auxValue) {
     const { w, h, type } = this;
     const m = MATS[t];
     const density = m.paint ?? (m.state === STATE.SOLID ? 1 : m.state === STATE.FIRE ? 0.4 : 0.55);
@@ -79,6 +82,7 @@ class Sim {
         if (type[i] !== 0) continue;
         if (r > 0 && Math.random() > density) continue;
         this.set(i, t);
+        if (auxValue !== undefined) this.aux[i] = auxValue;
       }
     }
   }
@@ -427,13 +431,16 @@ class Sim {
   render(buf) {
     const { type, shade, life, aux } = this;
     const halos = [];
-    const FIRE = ID.fire, CHARGE = ID.charge;
+    const FIRE = ID.fire, CHARGE = ID.charge, PICKY = ID.picky;
     for (let i = 0, n = type.length; i < n; i++) {
       const t = type[i];
       if (t === 0) { buf[i] = BG_COLOR; continue; }
       if (t === FIRE) { buf[i] = FIRE_COLORS[Math.min(255, life[i] + shade[i] * 4)]; continue; }
       const m = MATS[t];
-      if (t === CHARGE) {
+      if (t === PICKY) {
+        const food = MATS[aux[i]];
+        buf[i] = (shade[i] & 2) && food ? food.colors[1] : m.colors[shade[i]];
+      } else if (t === CHARGE) {
         const om = MATS[aux[i]];
         if (om && om.lit) { buf[i] = om.lit[1]; if (om.halo) halos.push(i); }
         else buf[i] = m.colors[shade[i]];
