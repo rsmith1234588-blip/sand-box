@@ -6,12 +6,17 @@ const sim = new Sim(W, H);
 installPeopleHooks(sim);
 
 // Tools that aren't materials
-const TOOL_PERSON = 1000, TOOL_WIND = 1001;
+const TOOL_PERSON = 1000, TOOL_WIND = 1001, TOOL_HEAT = 1002, TOOL_COOL = 1003;
+const HEAT_PER_FRAME = 25;   // degrees the Heat / Cool tools add or remove each frame
 const EXTRA_TOOLS = [
   { id: TOOL_PERSON, name: 'Person', color: '#f1c27d', category: 'Life & Weird',
     desc: 'Little people! They walk, climb, swim, ride portals and fans, and run from danger (mostly).' },
   { id: TOOL_WIND, name: 'Wind', color: 'linear-gradient(90deg, #cfe8ff, #6fa8dc)', category: 'Physics',
     desc: 'Hold to blast everything away from the cursor. Bigger brush = wider, stronger wind!' },
+  { id: TOOL_HEAT, name: 'Heat', swatch: 'heat',
+    desc: 'Hold to heat things up. Hot enough, and stone, metal and glass melt, water boils and wood catches fire. Wall has no temperature.' },
+  { id: TOOL_COOL, name: 'Cool', swatch: 'cool',
+    desc: 'Hold to chill things. Water freezes into ice, lava cools into stone, steam turns back into water, fire goes out.' },
 ];
 
 const canvas = document.getElementById('world');
@@ -45,6 +50,8 @@ const ui = {
   pickerTitle: document.getElementById('pickerTitle'),
   pickerText: document.getElementById('pickerText'),
   breezeVal: document.getElementById('breezeVal'),
+  optFalling: document.getElementById('optFalling'),
+  optFloor: document.getElementById('optFloor'),
 };
 
 const state = {
@@ -73,7 +80,7 @@ function buildPalette() {
     if (!m.category) continue;
     (groups[m.category] ||= []).push(m);
   }
-  for (const t of EXTRA_TOOLS) (groups[t.category] ||= []).unshift(t);
+  for (const t of EXTRA_TOOLS) if (t.category) (groups[t.category] ||= []).unshift(t);
   for (const g of PALETTE_ORDER) {
     if (!groups[g]) continue;
     const section = document.createElement('section');
@@ -89,17 +96,18 @@ function buildPalette() {
   const grid = document.createElement('div');
   grid.className = 'mats';
   grid.appendChild(matButton(ID.empty, 'Eraser', 'transparent', 'Removes anything, including walls. (Right-click also erases.)'));
+  for (const t of EXTRA_TOOLS) if (t.swatch) grid.appendChild(matButton(t.id, t.name, 'transparent', t.desc, t.swatch));
   tools.appendChild(grid);
   ui.palette.appendChild(tools);
   select(state.selected);
 }
 
-function matButton(id, name, color, desc) {
+function matButton(id, name, color, desc, swatchClass = id === ID.empty ? 'eraser' : '') {
   const b = document.createElement('button');
   b.className = 'mat';
   b.dataset.id = id;
   b.title = desc;
-  b.innerHTML = `<span class="swatch${id === ID.empty ? ' eraser' : ''}" style="background:${color}"></span>${name}`;
+  b.innerHTML = `<span class="swatch ${swatchClass}" style="background:${color}"></span>${name}`;
   b.addEventListener('click', () => select(id));
   // munchers with a food menu: single click picks them up right away, double-click opens the menu
   if (id === ID.picky || id === ID.antipicky) {
@@ -253,7 +261,7 @@ function toggleSwitchAt(p) {
 // Apply the current tool from a to b. `held` = pointer is being held still.
 function applyTool(a, b, held) {
   const t = currentTool();
-  if (t === TOOL_WIND) return;   // wind is applied every frame in the loop
+  if (t === TOOL_WIND || t === TOOL_HEAT || t === TOOL_COOL) return;   // applied every frame in the loop
   if (MATS[t]?.single) {         // one at a time: lightning, black holes
     if ((!held || state.heldFrames % 20 === 0) && b.x >= 0 && b.y >= 0 && b.x < W && b.y < H) {
       const i = b.y * W + b.x;
@@ -270,6 +278,11 @@ function applyTool(a, b, held) {
   }
   paintLine(a, b, t);
   if (t === ID.empty) erasePeople(sim, b.x, b.y, state.brush + 1);
+}
+
+function applyHeat() {
+  const p = state.last;
+  sim.heatArea(p.x, p.y, toolRadius(), currentTool() === TOOL_HEAT ? HEAT_PER_FRAME : -HEAT_PER_FRAME);
 }
 
 // Wind blasts outward from the cursor. Brush 1 is a puff, brush 20 is a hurricane.
@@ -299,6 +312,8 @@ canvas.addEventListener('pointerdown', e => {
   state.last = gridPos(e);
   state.hover = state.last;
   state.heldFrames = 0;
+  // solids being drawn hang in the air until you let go, then fall
+  sim.activeStroke = !state.erasing && MATS[state.selected]?.dynamic ? ++strokeCount : 0;
   if (!state.erasing && state.selected === ID.switchOff && toggleSwitchAt(state.last)) {
     state.drawing = false;   // flipped a switch; don't paint
     return;
@@ -314,7 +329,8 @@ canvas.addEventListener('pointermove', e => {
     state.last = p;
   }
 });
-const stopDrawing = () => { state.drawing = false; state.last = null; };
+let strokeCount = 0;
+const stopDrawing = () => { state.drawing = false; state.last = null; sim.activeStroke = 0; };
 canvas.addEventListener('pointerup', stopDrawing);
 canvas.addEventListener('pointercancel', stopDrawing);
 canvas.addEventListener('pointerleave', () => { if (!state.drawing) state.hover = null; });
@@ -345,6 +361,45 @@ function setBreeze(v) {
   ui.breezeVal.textContent = v === 0 ? 'off' : v < 0 ? '←'.repeat(-v) : '→'.repeat(v);
 }
 ui.breeze.addEventListener('input', () => setBreeze(+ui.breeze.value));
+
+// ------------------------------------------------------------ sidebar tabs & settings
+for (const tab of document.querySelectorAll('.tab')) {
+  tab.addEventListener('click', () => {
+    for (const other of document.querySelectorAll('.tab')) {
+      const on = other === tab;
+      other.classList.toggle('active', on);
+      other.setAttribute('aria-selected', on);
+      document.getElementById(other.dataset.tab).hidden = !on;
+    }
+  });
+}
+
+const SETTINGS_KEY = 'sandbox-settings';
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ fallingSolids: sim.fallingSolids, floorOpen: sim.floorOpen }));
+  } catch (e) { /* storage unavailable: settings just won't be remembered */ }
+}
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    if (typeof saved.fallingSolids === 'boolean') sim.fallingSolids = saved.fallingSolids;
+    if (typeof saved.floorOpen === 'boolean') sim.floorOpen = saved.floorOpen;
+  } catch (e) { /* ignore */ }
+  ui.optFalling.checked = sim.fallingSolids;
+  ui.optFloor.checked = sim.floorOpen;
+}
+ui.optFalling.addEventListener('change', () => {
+  sim.fallingSolids = ui.optFalling.checked;
+  if (!sim.fallingSolids) sim.vel.fill(0);
+  sim.wakeAll();   // everything gets re-checked
+  saveSettings();
+});
+ui.optFloor.addEventListener('change', () => {
+  sim.floorOpen = ui.optFloor.checked;
+  sim.wakeAll();
+  saveSettings();
+});
 
 // Time control: slow motion to fast forward
 const SPEEDS = [1 / 8, 1 / 4, 1 / 2, 1, 2, 4, 8];
@@ -381,14 +436,17 @@ window.addEventListener('keydown', e => {
 
 // ------------------------------------------------------------ loop
 const BRUSH_RING = ((200 << 24) | (255 << 16) | (255 << 8) | 255) >>> 0;
+const HEAT_RING = packRGB(255, 110, 50), COOL_RING = packRGB(110, 200, 255);
 function drawBrush() {
   const p = state.hover;
   if (!p) return;
   const r = toolRadius();
+  const t = currentTool();
+  const ring = t === TOOL_HEAT ? HEAT_RING : t === TOOL_COOL ? COOL_RING : BRUSH_RING;
   for (let a = 0; a < 64; a++) {
     const ang = (a / 64) * Math.PI * 2;
     const x = Math.round(p.x + Math.cos(ang) * (r + 0.5)), y = Math.round(p.y + Math.sin(ang) * (r + 0.5));
-    if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = BRUSH_RING;
+    if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = ring;
   }
 }
 
@@ -404,9 +462,9 @@ function updateHud() {
   const p = state.hover;
   let under = '';
   if (p && p.x >= 0 && p.y >= 0 && p.x < W && p.y < H) {
-    const t = sim.type[p.y * W + p.x];
+    const i = p.y * W + p.x, t = sim.type[i];
     if (personAt(sim, p.x, p.y)) under = 'Person · ';
-    else if (t) under = MATS[t].name + ' · ';
+    else if (t) under = MATS[t].name + (MATS[t].noHeat ? '' : ` ${Math.round(sim.temp[i])}°`) + ' · ';
   }
   const people = sim.people.length ? ` · ${sim.people.length} people` : '';
   ui.hud.textContent = `${under}${particles.toLocaleString()} particles${people} · ${fps} fps${state.paused ? ' · paused' : speedNote()}`;
@@ -416,7 +474,9 @@ function frame(now) {
   // keep emitting while the pointer is held still
   if (state.drawing && state.last && !state.paused) {
     state.heldFrames++;
-    if (currentTool() === TOOL_WIND) applyWind();
+    const t = currentTool();
+    if (t === TOOL_WIND) applyWind();
+    else if (t === TOOL_HEAT || t === TOOL_COOL) applyHeat();
     else applyTool(state.last, state.last, true);
   }
   if (state.stepOnce) {
@@ -475,6 +535,7 @@ function demoScene() {
   for (let k = 0; k < 3; k++) spawnPerson(sim, 135 + k * 20, H - 7);
 }
 
+loadSettings();
 buildPalette();
 buildPicker();
 buildGuide();

@@ -16,6 +16,9 @@ Open `index.html` in a browser. No build step or install needed.
 - **Speed** slider: slow motion (⅛×) to fast forward (8×). Keys: **`-`** slower, **`=`** faster
 - **Space**: pause, **`.`**: step one frame
 - **Reactions** button: in-game guide to every reaction
+- **Heat / Cool** tools (next to the Eraser): hold to warm things up or chill them. Hover over anything to see its
+  temperature
+- **Settings** tab (top of the side panel): turn **Falling solids** and **Fall through the floor** on or off
 
 ## Materials
 
@@ -37,6 +40,13 @@ Some things to try:
   bad news. Liquid nitrogen turns them into ice statues.
 - **Portals**: anything that falls, flows, drifts or walks into a blue portal comes out of an orange one (and back)
 - **Fans** blow an updraft; **Black Holes** pull everything in
+- **Temperature**: heat stone, metal or glass until it glows and melts into lava; boil water into steam, melt ice and
+  chocolate, bake clay into brick, set wood alight. Cool lava back into stone, freeze water into ice, snuff out fires.
+  Heat spreads slowly through touching things and everything drifts back to its normal temperature. Wall has no temperature.
+- **Falling solids**: solids you draw in mid-air hang there until you let go, then fall as one piece. Wood and ice
+  float on water; stone and metal sink. Land too hard (or too heavy) and they crack: stone into gravel, glass into
+  sand, wood into sawdust, ice into snow. Wall never moves, and anything touching a wall is held in place
+- **Fall through the floor** (setting): everything that reaches the bottom drops out of the world, people included
 - **Liquids level out**: pour water into one side of a U-shaped pipe and it rises up the other side to the same height
 
 - **Muncher** eats pixels! It tunnels through anything, splits in two when it's eaten enough, and starves when food runs out. All munchers are fireproof (they even eat fire and lava), but acid still kills them.

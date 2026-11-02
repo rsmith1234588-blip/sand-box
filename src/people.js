@@ -13,7 +13,8 @@ const PANTS = toColors(['#264653', '#3d405b', '#1d3557', '#5c4033', '#222222']);
 function pickOne(arr) { return arr[(Math.random() * arr.length) | 0]; }
 
 function cellAt(sim, x, y) {
-  if (x < 0 || x >= sim.w || y >= sim.h) return ID.wall;
+  if (x < 0 || x >= sim.w) return ID.wall;
+  if (y >= sim.h) return sim.floorOpen ? 0 : ID.wall;
   if (y < 0) return 0;
   return sim.type[y * sim.w + x];
 }
@@ -24,8 +25,11 @@ function blocksPerson(t) {
 }
 // Is there room for a person whose feet are at (x, y)?
 function fits(sim, x, y) {
-  if (x < 0 || x >= sim.w || y >= sim.h || y - (HEIGHT - 1) < 0) return false;
-  for (let k = 0; k < HEIGHT; k++) if (blocksPerson(sim.type[(y - k) * sim.w + x])) return false;
+  if (x < 0 || x >= sim.w || y - (HEIGHT - 1) < 0) return false;
+  if (y >= sim.h && !sim.floorOpen) return false;   // the floor (unless things fall through it)
+  for (let k = 0; k < HEIGHT; k++) {
+    if (y - k < sim.h && blocksPerson(sim.type[(y - k) * sim.w + x])) return false;
+  }
   return true;
 }
 
@@ -210,7 +214,8 @@ function updatePerson(sim, p) {
 }
 
 function updatePeople(sim) {
-  sim.people = sim.people.filter(p => updatePerson(sim, p));
+  // anyone who falls out of the bottom of the world is gone
+  sim.people = sim.people.filter(p => updatePerson(sim, p) && p.y - (HEIGHT - 1) < sim.h);
   // remember where everyone's feet are, for pressure plates
   sim.personMap.fill(0);
   for (const p of sim.people) if (p.y >= 0 && p.y < sim.h) sim.personMap[p.y * sim.w + p.x] = 1;

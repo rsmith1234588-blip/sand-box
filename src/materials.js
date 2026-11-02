@@ -312,6 +312,91 @@ for (const k of ['fire', 'lava', 'acid', 'void', 'muncher', 'picky', 'antipicky'
 }
 MATS[ID.wall].inedible = true;
 
+// ---------------------------------------------------------------- temperature
+// Every cell has a temperature (°C-ish). Things drift back to their natural temperature (`temp`,
+// room temperature unless set) and change state when pushed past `melt` (heating) or `freeze` (cooling).
+// Flammable things catch fire at `ignite`. Wall and other indestructible things have no temperature.
+const AMBIENT = 20;
+function thermal(key, props) { Object.assign(MATS[ID[key]], props); }
+const melts = (at, into) => ({ at, into });
+// Solids & powders that melt
+for (const k of ['stone', 'gravel', 'obsidian', 'rust', 'brick']) thermal(k, { melt: melts(900, 'lava') });
+thermal('metal', { melt: melts(1000, 'lava') });
+thermal('iron', { melt: melts(1000, 'lava') });
+thermal('copper', { melt: melts(900, 'lava') });
+thermal('gold', { melt: melts(800, 'lava') });
+thermal('glass', { melt: melts(700, 'lava') });
+thermal('crystal', { melt: melts(700, 'lava') });
+thermal('sand', { melt: melts(600, 'glass') });
+thermal('salt', { melt: melts(650, 'lava') });
+thermal('clay', { melt: melts(350, 'brick') });
+thermal('mud', { melt: melts(100, 'dirt') });
+thermal('sugar', { melt: melts(160, 'caramel') });
+thermal('chocobar', { melt: melts(35, 'chocolate') });
+thermal('ice', { temp: -10, melt: melts(0, 'water') });
+thermal('snow', { temp: -5, melt: melts(0, 'water') });
+thermal('cement', { melt: melts(150, 'stone') });
+// Liquids that boil or freeze
+thermal('water', { melt: melts(100, 'steam'), freeze: melts(0, 'ice') });
+thermal('saltwater', { melt: melts(105, ['steam', 'steam', 'salt']), freeze: melts(-20, 'ice') });
+thermal('vinegar', { melt: melts(100, 'steam'), freeze: melts(-2, 'ice') });
+thermal('lava', { temp: 1200, freeze: melts(700, 'stone') });
+thermal('chocolate', { temp: 45, freeze: melts(15, 'chocobar') });
+thermal('caramel', { temp: 170, freeze: melts(40, 'sugar') });
+thermal('honey', { freeze: melts(-30, 'sugar') });
+thermal('cryo', { temp: -196, melt: melts(-150, 'empty') });
+thermal('steam', { temp: 110, freeze: melts(90, 'water') });
+thermal('bubbles', { melt: melts(60, 'steam') });
+// Default ignition point for anything flammable (lower = catches fire sooner)
+for (const m of MATS) if (m.burn) m.ignite = m.ignite ?? (m.explode || m.rocket ? 150 : 250);
+thermal('nitro', { ignite: 80 });
+thermal('c4', { ignite: 600 });   // only extreme heat sets C4 off
+thermal('coal', { ignite: 400 });
+thermal('hydrogen', { ignite: 100 });
+// No temperature at all: wall, portals, black holes and other untouchable things
+// Heat capacity: how much heating it takes to change temperature (water soaks up a lot)
+for (const k of ['water', 'saltwater', 'vinegar']) MATS[ID[k]].heatCap = 5;
+thermal('ice', { heatCap: 3 });
+thermal('snow', { heatCap: 2 });
+for (const m of MATS) {
+  m.heatCap = m.heatCap ?? (m.state === STATE.LIQUID ? 3 : 1);
+  m.temp = m.temp ?? AMBIENT;
+  m.noHeat = m.state === STATE.EMPTY || m.state === STATE.FIRE || m.indestructible || m.key === 'arc';
+}
+
+// ---------------------------------------------------------------- falling solids
+// When falling solids are on, connected lumps of solid fall as one piece and can shatter on impact.
+// `toughness`: how hard a hit it takes to break (higher = tougher). `debris`: what the cracks turn into.
+// Things that hold their own position (clouds, critters, munchers...) never fall.
+for (const k of ['cloud', 'storm', 'muncher', 'picky', 'antipicky', 'fish', 'ant', 'arc', 'rocket', 'lightning', 'virus']) {
+  MATS[ID[k]].anchored = true;
+}
+const breaks = (toughness, debris) => ({ toughness, debris });
+thermal('stone', breaks(1, 'gravel'));
+thermal('brick', breaks(1, 'gravel'));
+thermal('obsidian', breaks(0.6, 'gravel'));
+thermal('rust', breaks(0.7, 'gravel'));
+thermal('glass', breaks(0.4, 'sand'));
+thermal('ice', breaks(0.5, 'snow'));
+thermal('crystal', breaks(0.5, 'glitter'));
+thermal('wood', breaks(2, 'sawdust'));
+thermal('trunk', breaks(2, 'sawdust'));
+thermal('metal', breaks(4, 'iron'));
+thermal('copper', breaks(3, 'iron'));
+thermal('gold', breaks(3, null));
+thermal('chocobar', breaks(0.8, null));
+for (const k of ['plant', 'stem', 'flower', 'moss', 'sponge']) thermal(k, { toughness: 3 });
+// Light solids float on water (water is 2)
+for (const k of ['wood', 'trunk', 'fuse', 'sponge']) MATS[ID[k]].density = 1.4;
+for (const k of ['plant', 'stem', 'flower', 'moss']) MATS[ID[k]].density = 1.2;
+MATS[ID.ice].density = 1.85;
+MATS[ID.chocobar].density = 2.3;
+for (const m of MATS) {
+  m.dynamic = m.state === STATE.SOLID && !m.indestructible && !m.anchored;
+  m.toughness = m.toughness ?? 1.5;
+}
+MATS[ID.charge].dynamic = false;   // electricity passing through: counts as whatever it's flowing through
+
 // ---------------------------------------------------------------- colors
 function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -537,6 +622,13 @@ guideNote('Ant + Dirt / Sand', 'Anthills', 'Ants dig tunnels and pile the dirt u
 guideNote('Moss + damp Stone', 'Moss', 'Moss spreads over wet stone, brick, gravel and wood');
 guideNote('Tree Seed + Dirt / Mud', 'Tree', 'Grows a trunk, branches and leaves');
 guideNote('Storm Cloud', 'Rain + Lightning', 'Lightning strikes whatever is underneath');
+
+// Heat, cold & falling solids
+guideNote('Heat tool + Stone, Metal, Glass...', 'Lava', 'Get anything hot enough and it melts. Sand melts into glass, clay bakes into brick');
+guideNote('Heat tool + Water / Ice', 'Steam / Water', 'Ice melts at 0°, water boils at 100°');
+guideNote('Cool tool + Water / Lava', 'Ice / Stone', 'Freeze water solid, or cool lava back into rock');
+guideNote('Heat tool + Wood, Oil, Gunpowder...', 'Fire', 'Flammable things catch fire once they get hot enough');
+guideNote('Falling solid + a hard landing', 'Rubble', 'Big, heavy or fast-falling lumps crack apart. Stone breaks into gravel, glass into sand, wood into sawdust');
 
 // Acid dissolves things (generic)
 for (const m of MATS) {

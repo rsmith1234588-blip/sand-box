@@ -35,9 +35,27 @@
         <div id="hud"></div>
       </div>
       <aside>
-        <div id="info"></div>
-        <div id="palette"></div>
-        <p class="hint">Left-click to draw · Right-click to erase · Hold Wind to blast things away · <kbd>Tab</kbd> brush 1/5/20 · <kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>Space</kbd> pause · <kbd>-</kbd> <kbd>=</kbd> speed</p>
+        <div class="tabs" role="tablist">
+          <button class="tab active" role="tab" data-tab="materialsPanel" aria-selected="true">Materials</button>
+          <button class="tab" role="tab" data-tab="settingsPanel" aria-selected="false">Settings</button>
+        </div>
+        <div id="materialsPanel" class="panel">
+          <div id="info"></div>
+          <div id="palette"></div>
+          <p class="hint">Left-click to draw · Right-click to erase · Hold Wind to blast things away · Hold Heat / Cool to melt or freeze · <kbd>Tab</kbd> brush 1/5/20 · <kbd>[</kbd> <kbd>]</kbd> brush size · <kbd>Space</kbd> pause · <kbd>-</kbd> <kbd>=</kbd> speed</p>
+        </div>
+        <div id="settingsPanel" class="panel" hidden>
+          <label class="setting">
+            <span class="setting-text"><b>Falling solids</b>
+              <small>Solids fall in one piece, sink or float in liquids, and crack apart if they land too hard or are too heavy. Wall never moves, and anything stuck to a wall stays put.</small></span>
+            <input type="checkbox" id="optFalling" class="switch" checked>
+          </label>
+          <label class="setting">
+            <span class="setting-text"><b>Fall through the floor</b>
+              <small>Things that reach the bottom of the world fall out and disappear, instead of landing on the floor.</small></span>
+            <input type="checkbox" id="optFloor" class="switch">
+          </label>
+        </div>
       </aside>
     </main>
   </div>
