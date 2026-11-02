@@ -8,6 +8,12 @@ const MUNCH_TO_SPLIT = 40;   // pixels a muncher must eat before it splits in tw
 
 function inBounds(sim, x, y) { return x >= 0 && y >= 0 && x < sim.w && y < sim.h; }
 function isOpen(t) { return t === 0 || MATS[t].state === STATE.GAS; }
+// With "fall through the floor" on, something about to fall off the bottom row leaves the world.
+function dropsOut(sim, y, i) {
+  if (y + 1 < sim.h || !sim.floorOpen) return false;
+  sim.set(i, 0);
+  return true;
+}
 
 // ---------------------------------------------------------------- electricity
 function chargeCell(sim, j, original) {
@@ -227,6 +233,7 @@ const BEHAVIORS = {
       return true;
     }
     // nothing to eat: fall, or wander
+    if (dropsOut(sim, y, i)) return true;
     if (y + 1 < h && isOpen(type[i + w])) { sim.swap(i, i + w); return true; }
     for (let k = 0; k < 8; k++) {
       const [dx, dy] = DIRS8[(start + k) & 7];
@@ -661,6 +668,7 @@ Object.assign(BEHAVIORS, {
     }
 
     // nothing in sight: fall (sinking through liquids and gases), or wander
+    if (dropsOut(sim, y, i)) return true;
     if (y + 1 < h && pickyCanPass(type[i + w])) { sim.swap(i, i + w); return true; }
     for (let k = 0; k < 8; k++) {
       const [dx, dy] = DIRS8[(start + k) & 7];
@@ -743,6 +751,7 @@ Object.assign(BEHAVIORS, {
     if (!wet) {   // out of water: flop around, fall, and eventually die
       if (life[i] <= 3) { sim.set(i, ID.deadfish); return true; }
       life[i] -= 3;
+      if (dropsOut(sim, y, i)) return true;
       if (y + 1 < h && pickyCanPass(type[i + w])) { sim.swap(i, i + w); return true; }
       if (Math.random() < 0.2) {
         const s = Math.random() < 0.5 ? -1 : 1;
@@ -775,6 +784,7 @@ Object.assign(BEHAVIORS, {
       if (inBounds(sim, nx, ny) && solidish(type[ny * w + nx])) { supported = true; break; }
     }
     if (!supported) {
+      if (dropsOut(sim, y, i)) return true;
       if (y + 1 < h && pickyCanPass(type[i + w])) sim.swap(i, i + w);
       return true;
     }

@@ -313,7 +313,7 @@ canvas.addEventListener('pointerdown', e => {
   state.hover = state.last;
   state.heldFrames = 0;
   // solids being drawn hang in the air until you let go, then fall
-  sim.activeStroke = !state.erasing && MATS[state.selected]?.dynamic ? ++strokeCount : 0;
+  if (!state.erasing && MATS[state.selected]?.dynamic) sim.beginStroke();
   if (!state.erasing && state.selected === ID.switchOff && toggleSwitchAt(state.last)) {
     state.drawing = false;   // flipped a switch; don't paint
     return;
@@ -329,8 +329,7 @@ canvas.addEventListener('pointermove', e => {
     state.last = p;
   }
 });
-let strokeCount = 0;
-const stopDrawing = () => { state.drawing = false; state.last = null; sim.activeStroke = 0; };
+const stopDrawing = () => { state.drawing = false; state.last = null; sim.endStroke(); };
 canvas.addEventListener('pointerup', stopDrawing);
 canvas.addEventListener('pointercancel', stopDrawing);
 canvas.addEventListener('pointerleave', () => { if (!state.drawing) state.hover = null; });
@@ -390,9 +389,7 @@ function loadSettings() {
   ui.optFloor.checked = sim.floorOpen;
 }
 ui.optFalling.addEventListener('change', () => {
-  sim.fallingSolids = ui.optFalling.checked;
-  if (!sim.fallingSolids) sim.vel.fill(0);
-  sim.wakeAll();   // everything gets re-checked
+  sim.setFallingSolids(ui.optFalling.checked);
   saveSettings();
 });
 ui.optFloor.addEventListener('change', () => {

@@ -43,9 +43,11 @@ Some things to try:
 - **Temperature**: heat stone, metal or glass until it glows and melts into lava; boil water into steam, melt ice and
   chocolate, bake clay into brick, set wood alight. Cool lava back into stone, freeze water into ice, snuff out fires.
   Heat spreads slowly through touching things and everything drifts back to its normal temperature. Wall has no temperature.
-- **Falling solids**: solids you draw in mid-air hang there until you let go, then fall as one piece. Wood and ice
-  float on water; stone and metal sink. Land too hard (or too heavy) and they crack: stone into gravel, glass into
-  sand, wood into sawdust, ice into snow. Wall never moves, and anything touching a wall is held in place
+- **Falling solids**: solids you draw in mid-air hang there until you let go, then fall as one piece. Each thing you
+  draw is its own piece (drawing onto another piece joins them), so a block that lands on a ledge stays a block and
+  **tips over** if it hangs too far off the edge. Tall things topple. Wood and ice float on water; stone and metal
+  sink. Land (or topple) too hard, or be too heavy, and they crack: stone into gravel, glass into sand, wood into
+  sawdust, ice into snow. Wall never moves, and anything you draw onto a wall stays stuck to it
 - **Fall through the floor** (setting): everything that reaches the bottom drops out of the world, people included
 - **Liquids level out**: pour water into one side of a U-shaped pipe and it rises up the other side to the same height
 
@@ -78,6 +80,7 @@ Some things to try:
 
 - `src/materials.js`: material definitions (physics properties, colors) and the reaction table
 - `src/sim.js`: the cellular-automaton simulation (movement, reactions, fire, explosions, rendering)
+- `src/solids.js`: falling solids (pieces that fall, tip over and break)
 - `src/behaviors.js`: special behaviors (munchers, electricity, clone, void, virus, seeds, fireworks...)
 - `src/people.js`: the little people (agents that live on top of the grid)
 - `src/main.js`: UI, input and the game loop

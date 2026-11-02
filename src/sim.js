@@ -27,12 +27,6 @@ const M_MELT_INTO = MATS.map(m => (m.melt ? toIds(m.melt.into) : null));
 const M_FREEZE_INTO = MATS.map(m => (m.freeze ? toIds(m.freeze.into) : null));
 const M_HEATCAP = Float32Array.from(MATS, m => m.heatCap);
 const MIN_TEMP = -273, MAX_TEMP = 3000;
-// Falling solids
-const M_DYN = Uint8Array.from(MATS, m => (m.dynamic ? 1 : 0));
-const M_TOUGH = Float32Array.from(MATS, m => m.toughness);
-const M_DEBRIS = Uint8Array.from(MATS, m => (m.debris ? ID[m.debris] : 0));
-const MAX_FALL_ROWS = 6;      // fastest a falling solid can go (rows per step)
-const BREAK_FORCE = 28;       // how hard a landing it takes to crack a solid of toughness 1
 
 // The world is split into chunks. A chunk that had nothing happen in it (or next to it) last
 // frame is asleep and skipped entirely, so calm lakes and settled sand piles cost almost nothing.
@@ -82,11 +76,16 @@ class Sim {
     this.moved = new Uint8Array(n);
     this.temp = new Float32Array(n).fill(AMBIENT);   // temperature of each cell
     this.vel = new Uint8Array(n);       // how long a falling solid has been falling
-    this.bodyMark = new Uint32Array(n); // which solid body last claimed this cell (falling solids)
+    // falling solids (see solids.js)
+    this.bid = new Uint32Array(n);      // which solid piece this cell belongs to (0 = joins whatever it touches)
+    this.nextBid = 1;
+    this.bodyMark = new Uint32Array(n); // which pass last claimed this cell
     this.bodyGen = 0;
+    this.frameGen = 0;
     this.bodyCells = new Int32Array(n);
-    this.stroke = new Uint32Array(n);   // paint stroke that made this cell
-    this.activeStroke = 0;              // solids from the stroke being drawn right now hang in place
+    this.spinners = [];                 // solids tipping over right now
+    this.glued = new Set();             // pieces drawn onto a wall, which stay stuck to it
+    this.activeStroke = 0;              // piece being drawn right now: hangs in place until you let go
     this.fallingSolids = true;          // setting: solids fall and break
     this.floorOpen = false;             // setting: things fall out of the bottom of the world
     this.frame = 0;
@@ -115,6 +114,9 @@ class Sim {
     this.life.fill(0);
     this.aux.fill(0);
     this.vel.fill(0);
+    this.bid.fill(0);
+    this.spinners.length = 0;
+    this.glued.clear();
     this.temp.fill(AMBIENT);
     this.people.length = 0;
     this.personMap.fill(0);
@@ -149,7 +151,7 @@ class Sim {
     this.extra[i] = 0;
     this.temp[i] = m.temp;
     this.vel[i] = 0;
-    this.stroke[i] = 0;
+    this.bid[i] = M_DYN[t] ? this.adoptBid(i) : 0;
     this.life[i] = m.life ? randInt(m.life[0], m.life[1]) : 0;
   }
 
@@ -166,6 +168,7 @@ class Sim {
     let t = type[i]; type[i] = type[j]; type[j] = t;
     t = temp[i]; temp[i] = temp[j]; temp[j] = t;
     t = vel[i]; vel[i] = vel[j]; vel[j] = t;
+    t = this.bid[i]; this.bid[i] = this.bid[j]; this.bid[j] = t;
     t = extra[i]; extra[i] = extra[j]; extra[j] = t;
     t = life[i]; life[i] = life[j]; life[j] = t;
     t = shade[i]; shade[i] = shade[j]; shade[j] = t;
@@ -195,7 +198,7 @@ class Sim {
         if (r > 0 && Math.random() > density) continue;
         this.set(i, t);
         if (auxValue !== undefined) this.aux[i] = auxValue;
-        if (this.activeStroke && M_DYN[t]) this.stroke[i] = this.activeStroke;
+        if (this.activeStroke && M_DYN[t]) this.bid[i] = this.activeStroke;
       }
     }
   }
@@ -296,156 +299,6 @@ class Sim {
     if (T >= M_MELT_AT[t]) T = M_MELT_AT[t] - 20;
     this.temp[i] = T;
     return true;
-  }
-
-  // ------------------------------------------------------------ falling solids
-  // Is cell i part of a solid that can fall? (Electricity flowing through a wire counts as the wire.)
-  isDynamic(i) {
-    const t = this.type[i];
-    return M_DYN[t] === 1 || (t === ID.charge && M_DYN[this.aux[i]] === 1);
-  }
-
-  // Look for solids in the busy parts of the world and let any unsupported ones fall.
-  updateBodies() {
-    const { w, h, awake, cw } = this;
-    if (this.bodyGen > 0xf0000000) { this.bodyMark.fill(0); this.bodyGen = 0; }
-    const startGen = this.bodyGen;
-    for (let y = h - 1; y >= 0; y--) {   // bottom first, so a stack falls together
-      const chunkRow = (y >> CHUNK_BITS) * cw;
-      for (let x = 0; x < w; x++) {
-        if (!awake[chunkRow + (x >> CHUNK_BITS)]) { x |= CHUNK - 1; continue; }
-        const i = y * w + x;
-        if (this.bodyMark[i] > startGen || !this.isDynamic(i)) continue;
-        this.fallBody(i);
-      }
-    }
-  }
-
-  // Find the whole connected lump of solid around `seed` and drop it if nothing holds it up.
-  fallBody(seed) {
-    const { w, h, type, aux, vel, bodyMark: mark, bodyCells: cells } = this;
-    let gen = ++this.bodyGen;
-    let n = 0, held = false, stuck = false, mass = 0, tough = 0, v = 0;
-    cells[n++] = seed;
-    mark[seed] = gen;
-    const WALL = ID.wall, stroke = this.activeStroke;
-    for (let q = 0; q < n; q++) {
-      const c = cells[q];
-      const cy = (c / w) | 0, cx = c - cy * w;
-      const t = type[c] === ID.charge ? aux[c] : type[c];
-      mass += M_DENSITY[t];
-      tough += M_TOUGH[t];
-      if (vel[c] > v) v = vel[c];
-      if (stroke && this.stroke[c] === stroke) held = true;   // still being drawn
-      for (let d = 0; d < 4; d++) {
-        let j;
-        if (d === 0) { if (cy === 0) continue; j = c - w; }
-        else if (d === 1) { if (cx === w - 1) continue; j = c + 1; }
-        else if (d === 2) { if (cy === h - 1) continue; j = c + w; }
-        else { if (cx === 0) continue; j = c - 1; }
-        if (mark[j] === gen) continue;
-        if (this.isDynamic(j)) { mark[j] = gen; cells[n++] = j; }
-        else if (type[j] === WALL) stuck = true;   // stuck to (or landed on) a wall
-      }
-    }
-    if (held) {
-      if (v) for (let k = 0; k < n; k++) vel[cells[k]] = 0;
-      return;
-    }
-    const density = mass / n;
-    const rows = stuck ? 0 : Math.min(MAX_FALL_ROWS, 1 + (v >> 3));
-    let fell = 0;
-    for (let r = 0; r < rows && n > 0; r++) {
-      if (!this.canFall(cells, n, gen, density)) break;
-      if (r === 0) cells.subarray(0, n).sort();   // move the bottom of each column first
-      n = this.shiftDown(cells, n);
-      gen = ++this.bodyGen;
-      for (let k = 0; k < n; k++) mark[cells[k]] = gen;
-      fell++;
-    }
-    if (fell) {
-      const nv = Math.min(250, v + 1);
-      for (let k = 0; k < n; k++) vel[cells[k]] = nv;
-    } else if (v) {
-      // it just landed. Only the part that was falling takes the hit (not the floor it landed on).
-      gen = ++this.bodyGen;
-      let m = 0;
-      tough = 0;
-      for (let k = 0; k < n; k++) {
-        const c = cells[k];
-        if (!vel[c]) continue;
-        vel[c] = 0;
-        mark[c] = gen;
-        cells[m++] = c;
-        tough += M_TOUGH[type[c] === ID.charge ? aux[c] : type[c]];
-      }
-      this.impact(cells, m, gen, v, tough / m);
-    }
-  }
-
-  // Can the body (cells marked `gen`) move down one row? It falls through air, gas and fire,
-  // sinks through lighter liquids and floats on heavier ones.
-  canFall(cells, n, gen, density) {
-    const { w, type, bodyMark: mark } = this;
-    const last = w * (this.h - 1);
-    for (let k = 0; k < n; k++) {
-      const c = cells[k];
-      if (c >= last) { if (this.floorOpen) continue; return false; }
-      const j = c + w;
-      if (mark[j] === gen) continue;
-      const tt = type[j];
-      if (tt === 0) continue;
-      const st = M_STATE[tt];
-      if (st === STATE.GAS || st === STATE.FIRE) continue;
-      if (st === STATE.LIQUID && density > M_DENSITY[tt]) continue;
-      return false;
-    }
-    return true;
-  }
-
-  // Move every cell of the body (sorted top to bottom) down one row; whatever was below rises
-  // up through it. Cells on the bottom row fall out of the world. Returns the new cell count.
-  shiftDown(cells, n) {
-    const w = this.w, last = w * (this.h - 1);
-    let out = 0;
-    for (let k = n - 1; k >= 0; k--) {
-      const c = cells[k];
-      if (c >= last) { this.set(c, 0); cells[k] = -1; out++; }
-      else { this.swap(c, c + w); cells[k] = c + w; }
-    }
-    if (!out) return n;
-    let m = 0;
-    for (let k = 0; k < n; k++) if (cells[k] >= 0) cells[m++] = cells[k];
-    return m;
-  }
-
-  // A falling solid hit something. Too fast or too heavy, and it cracks into pieces:
-  // crack lines turn into rubble (or gaps) and each piece carries on by itself.
-  impact(cells, n, gen, v, toughness) {
-    const { w, h, type, aux, bodyMark: mark } = this;
-    const force = v * (1 + Math.sqrt(n) / 12);
-    const limit = BREAK_FORCE * toughness;
-    if (force < limit) return;
-    const cracks = Math.min(40, Math.ceil((force / limit) ** 2 * (1 + n / 120)));
-    for (let c = 0; c < cracks; c++) {
-      const o = cells[(Math.random() * n) | 0];
-      const oy = (o / w) | 0, ox = o - oy * w;
-      const a = Math.random() * Math.PI;
-      const dx = Math.cos(a), dy = Math.sin(a);
-      for (const dir of [1, -1]) {
-        for (let s = dir === 1 ? 0 : 1; s < 400; s++) {
-          const x = Math.round(ox + dx * s * dir), y = Math.round(oy + dy * s * dir);
-          if (x < 0 || y < 0 || x >= w || y >= h) break;
-          const j = y * w + x;
-          if (mark[j] !== gen) break;   // left the body
-          if (!this.isDynamic(j)) continue;   // already cracked
-          const t = type[j] === ID.charge ? aux[j] : type[j];
-          this.set(j, M_DEBRIS[t]);
-          this.moved[j] = 1;
-          mark[j] = gen;   // keep the crack line going through cracked cells
-        }
-      }
-    }
   }
 
   // Remember where portals and black holes are, so they can find each other quickly.
