@@ -210,7 +210,7 @@ const BEHAVIORS = {
       const j = ny * w + nx, t = type[j];
       if (!t) continue;
       const m = MATS[t];
-      if (m.inedible || m.hot || m.state === STATE.FIRE) continue;
+      if (m.inedible) continue;   // fireproof, so fire and lava are on the menu too
       const fed = aux[i] + 1;
       sim.set(j, 0);
       sim.swap(i, j);          // step into the bite
@@ -616,7 +616,7 @@ Object.assign(BEHAVIORS, {
       if (!t) return false;
       if (!reverse) return t === food;
       const m = MATS[t];
-      return t !== food && !m.inedible && !m.hot && m.state !== STATE.FIRE;
+      return t !== food && !m.inedible;
     };
 
     // eat a neighbour if it's the right food

@@ -192,7 +192,7 @@ material('arc', { color: '#cfe8ff', life: [2, 5], tick: 'arc', inedible: true, i
 // Life & weird
 material('muncher', { color: '#ff3df2', vary: 0.2, glow: true, tick: 'muncher', inedible: true, dissolve: 0.3,
   paint: 0.04, category: 'Life & Weird',
-  desc: 'Eats pixels! Multiplies when well fed, starves when food runs out. Fireproof, but acid kills it.' });
+  desc: 'Eats pixels! Multiplies when well fed, starves when food runs out. Fireproof (it even eats fire and lava), but acid kills it.' });
 material('picky', { name: 'Picky Muncher', color: '#3df2c0', vary: 0.2, glow: true, tick: 'picky', inedible: true,
   paint: 0.04, category: 'Life & Weird',
   desc: 'A muncher that only eats the one material you choose, and duplicates with every pixel it eats.' });
@@ -509,7 +509,7 @@ guideNote('Void + anything', 'Nothing', 'Swallows everything except Wall');
 guideNote('Clone + anything', 'Copies', 'Copies whatever touches it first, forever');
 guideNote('Virus + almost anything', 'Virus', 'Spreads, then dies out. Glass, Wall and Obsidian are immune');
 react('virus', 'bleach', 0.3, 'empty', null, { note: 'Bleach disinfects' });
-guideNote('Muncher + Fire / Lava', 'Nothing', 'All munchers are fireproof, but acid still dissolves them');
+guideNote('Muncher + Fire / Lava', 'More Munchers', 'All munchers are fireproof and happily eat fire and lava, but acid still dissolves them');
 guideNote('Picky Muncher + its chosen food', 'More Picky Munchers', 'Ignores everything except the one material you pick');
 guideNote('Picky Muncher (eats Fire or Lava)', 'Hungry', 'Starves twice as fast between meals');
 guideNote('Starving Muncher', 'Dead Muncher', 'Munchers leave a body when they starve. Only a Picky Muncher set to eat Dead Munchers will eat it, and those leave no body');
