@@ -192,7 +192,7 @@ material('arc', { color: '#cfe8ff', life: [2, 5], tick: 'arc', inedible: true, i
 // Life & weird
 material('muncher', { color: '#ff3df2', vary: 0.2, glow: true, tick: 'muncher', inedible: true, dissolve: 0.3,
   paint: 0.04, category: 'Life & Weird',
-  desc: 'Eats pixels! Multiplies when well fed, starves when food runs out. Fire, lava and acid kill it.' });
+  desc: 'Eats pixels! Multiplies when well fed, starves when food runs out. Fireproof, but acid kills it.' });
 material('picky', { name: 'Picky Muncher', color: '#3df2c0', vary: 0.2, glow: true, tick: 'picky', inedible: true,
   paint: 0.04, category: 'Life & Weird',
   desc: 'A muncher that only eats the one material you choose, and duplicates with every pixel it eats.' });
@@ -509,12 +509,9 @@ guideNote('Void + anything', 'Nothing', 'Swallows everything except Wall');
 guideNote('Clone + anything', 'Copies', 'Copies whatever touches it first, forever');
 guideNote('Virus + almost anything', 'Virus', 'Spreads, then dies out. Glass, Wall and Obsidian are immune');
 react('virus', 'bleach', 0.3, 'empty', null, { note: 'Bleach disinfects' });
-react('muncher', 'fire', 0.2, 'ash', null, { note: 'Munchers are afraid of fire' });
-react('muncher', 'lava', 0.5, 'ash', null);
-react('antipicky', 'fire', 0.2, 'ash', null);
-react('antipicky', 'lava', 0.5, 'ash', null);
+guideNote('Muncher + Fire / Lava', 'Nothing', 'All munchers are fireproof, but acid still dissolves them');
 guideNote('Picky Muncher + its chosen food', 'More Picky Munchers', 'Ignores everything except the one material you pick');
-guideNote('Picky Muncher (eats Fire or Lava)', 'Fireproof', 'Immune to heat, but starves twice as fast between meals');
+guideNote('Picky Muncher (eats Fire or Lava)', 'Hungry', 'Starves twice as fast between meals');
 guideNote('Starving Muncher', 'Dead Muncher', 'Munchers leave a body when they starve. Only a Picky Muncher set to eat Dead Munchers will eat it, and those leave no body');
 guideNote('Reverse Picky + anything but its safe material', 'More Reverse Pickies', 'Eats everything except what you pick');
 

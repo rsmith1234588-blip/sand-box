@@ -582,21 +582,15 @@ function pickyCanPass(t) {
   return s === STATE.GAS || s === STATE.LIQUID;
 }
 
-// Does something deadly touch this picky muncher? Eating a hazard makes it immune to it, and
-// fire- or lava-eaters are immune to both. Returns the hazard's id, or 0.
-const PICKY_HAZARDS = () => [[ID.fire, 0.2], [ID.lava, 0.5], [ID.acid, 0.3]];
-function pickyHazard(sim, x, y, food, fiery) {
+// Does acid touch this picky muncher? Munchers are fireproof, but acid dissolves them,
+// unless acid is what it eats. Returns true if it should die.
+function pickyHazard(sim, x, y, food) {
+  if (food === ID.acid) return false;
   for (const [dx, dy] of DIRS4) {
     const nx = x + dx, ny = y + dy;
-    if (!inBounds(sim, nx, ny)) continue;
-    const t = sim.type[ny * sim.w + nx];
-    for (const [hz, p] of PICKY_HAZARDS()) {
-      if (t !== hz || t === food) continue;
-      if (fiery && (hz === ID.fire || hz === ID.lava)) continue;
-      if (Math.random() < p) return hz;
-    }
+    if (inBounds(sim, nx, ny) && sim.type[ny * sim.w + nx] === ID.acid && Math.random() < 0.3) return true;
   }
-  return 0;
+  return false;
 }
 
 Object.assign(BEHAVIORS, {
@@ -611,9 +605,8 @@ Object.assign(BEHAVIORS, {
 
     // body-eaters vanish completely when they die: no ash, no body
     const scavenger = !reverse && food === ID.corpse;
-    if (!reverse) {   // (reverse pickies get hurt through the normal reaction table)
-      const hz = pickyHazard(sim, x, y, food, fiery);
-      if (hz) { sim.set(i, hz === ID.acid || scavenger ? 0 : ID.ash); return true; }
+    if (!reverse) {   // (reverse pickies are dissolved by acid through the normal reaction table)
+      if (pickyHazard(sim, x, y, food)) { sim.set(i, 0); return true; }
     }
     if (Math.random() < 0.35) return true;
     if (life[i] === 0) { sim.set(i, scavenger ? 0 : ID.corpse); return true; }   // starved: leaves a body (unless it eats them)

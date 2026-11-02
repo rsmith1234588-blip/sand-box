@@ -164,7 +164,7 @@ function openPicker(kind) {
   if (kind === ID.picky) {
     ui.pickerTitle.textContent = 'What should this Muncher eat?';
     ui.pickerText.textContent = 'It will only eat this material, and leave everything else alone. ' +
-      'Fire and lava eaters are fireproof, but starve twice as fast.';
+      'Fire and lava eaters starve twice as fast.';
   } else {
     ui.pickerTitle.textContent = 'What should this Muncher NOT eat?';
     ui.pickerText.textContent = 'It will eat everything except this material, which stays safe.';
@@ -185,7 +185,7 @@ function select(id) {
     const fiery = food.id === ID.fire || food.hot;
     ui.info.innerHTML = `<b>Picky Muncher</b>: only eats <b>${food.name}</b> and leaves everything else alone. ` +
       'Duplicates with every pixel it eats.' +
-      (fiery ? ' Fireproof, but starves twice as fast.' : '') +
+      (fiery ? ' Starves twice as fast.' : '') +
       (food.id === ID.corpse ? ' Leaves no body when it dies.' : '') + ' Double-click its button to pick a different food.';
   } else if (id === ID.antipicky) {
     ui.info.innerHTML = `<b>Reverse Picky</b>: eats everything <i>except</i> <b>${MATS[state.antiTarget].name}</b>. ` +
